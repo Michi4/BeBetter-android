@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-feature android:name="android.hardware.type.watch" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="BeBetter"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.DeviceDefault">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Watch Tile: today's habits + streak at a glance -->
+        <service
+            android:name=".tile.BeBetterTileService"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="BeBetter Today">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+            <meta-data
+                android:name="androidx.wear.tiles.PREVIEW"
+                android:resource="@drawable/tile_preview" />
+        </service>
+
+        <!-- Watch-face complication: current streak -->
+        <service
+            android:name=".complication.StreakComplicationService"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="BeBetter Streak"
+            android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.watchface.complications.datasource.action.COMPLICATION_REQUEST_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="androidx.wear.watchface.complications.datasource.SUPPORTED_TYPES"
+                android:value="SHORT_TEXT,RANGED_VALUE" />
+            <meta-data
+                android:name="androidx.wear.watchface.complications.datasource.UPDATE_PERIOD_SECONDS"
+                android:value="600" />
+        </service>
+    </application>
+</manifest>

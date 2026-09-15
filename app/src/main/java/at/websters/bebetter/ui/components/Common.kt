@@ -155,11 +155,21 @@ private fun Habit.hasBreak(): Boolean = try {
 // ---------- TaskCard: exact web replica ----------
 
 @Composable
-fun TaskRow(task: Task, onChanged: () -> Unit) {
+fun TaskRow(task: Task, onChanged: () -> Unit, onMove: ((Int) -> Unit)? = null) {
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
     val done = task.isCompletedToday
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (onMove != null) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                IconButton(onClick = { onMove(-1) }, modifier = Modifier.size(20.dp)) {
+                    Text("∧", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f))
+                }
+                IconButton(onClick = { onMove(1) }, modifier = Modifier.size(20.dp)) {
+                    Text("∨", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f))
+                }
+            }
+        }
         // checkbox 44dp rounded-lg border-2
         Box(
             Modifier.size(44.dp)
@@ -182,7 +192,7 @@ fun TaskRow(task: Task, onChanged: () -> Unit) {
                 },
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Filled.Check, null, tint = if (done) Color.White else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f), modifier = Modifier.size(16.dp))
+            if (done) Icon(Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(16.dp))
         }
         Column(Modifier.weight(1f)) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -262,9 +272,9 @@ fun ContributionGridView(
                 for (w in 0 until 53) {
                     val day = first.plusDays((w * 7 + row).toLong())
                     if (day.year != year && (w > 0 && day.year > year)) {
-                        Box(Modifier.size(12.dp))
+                        Box(Modifier.size(10.dp))
                     } else if (day.year != year) {
-                        Box(Modifier.size(12.dp))
+                        Box(Modifier.size(10.dp))
                     } else {
                         val dateStr = day.toString()
                         val g = grid[dateStr]
@@ -278,12 +288,10 @@ fun ContributionGridView(
                         }
                         val today = day == LocalDate.now()
                         val base = if (isVac) Color(0xFFF59E0B).copy(alpha = 0.18f) else levelColor(intensity, dark)
-                        // premium: glow for max, subtle scale animation
-                        val cellModifier = Modifier.size(12.dp)
+                        val cellModifier = Modifier.size(10.dp)
                             .clip(RoundedCornerShape(2.dp))
                             .background(base)
                             .then(if (today) Modifier.border(1.5.dp, BeBetterTokens.Accent, RoundedCornerShape(2.dp)) else Modifier)
-                            .then(if (intensity >= 0.9f) Modifier else Modifier)
                             .clickable { onDayClick?.invoke(dateStr) }
                         Box(cellModifier)
                     }
@@ -294,7 +302,7 @@ fun ContributionGridView(
             Spacer(Modifier.weight(1f))
             Text("Less", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
             listOf(0.0, 0.2, 0.4, 0.7, 1.0).forEach {
-                Box(Modifier.size(12.dp).clip(RoundedCornerShape(2.dp)).background(levelColor(it, dark)))
+                Box(Modifier.size(10.dp).clip(RoundedCornerShape(2.dp)).background(levelColor(it, dark)))
             }
             Text("More", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
         }

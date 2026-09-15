@@ -101,12 +101,25 @@ fun DashboardScreen(
     val upcoming = scheduled.filter { h -> val t = h.scheduledTime; t != null && slotMinutes(t) > now + 30 && h.completedToday != true && !hasBreak(h) }
     val unscheduled = scheduled.filter { it.scheduledTime == null }
 
+    fun moveTask(task: at.websters.bebetter.data.Task, dir: Int) {
+        val ids = tasks.map { it.id }.toMutableList()
+        val idx = ids.indexOf(task.id)
+        if (idx < 0) return
+        ids.removeAt(idx)
+        val newIdx = (idx + dir).coerceIn(0, ids.size)
+        ids.add(newIdx, task.id)
+        val byId = tasks.associateBy { it.id }
+        tasks = ids.mapNotNull { byId[it] } + tasks.filter { it.id !in ids }
+        scope.launch { runCatching { ApiClient.get().reorderTasks(mapOf("ids" to ids)) } }
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        floatingActionButtonPosition = FabPosition.Center,
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { createMode = "task"; showCreate = true },
-                containerColor = BeBetterTokens.AccentBtnHover, // emerald-600 like web FAB
+                containerColor = BeBetterTokens.AccentBtnHover,
                 contentColor = androidx.compose.ui.graphics.Color.White,
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.size(56.dp)
@@ -246,7 +259,7 @@ fun DashboardScreen(
             if (tasks.isEmpty()) {
                 item { Text("No tasks for today", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) }
             } else {
-                items(tasks.take(8)) { t -> TaskRow(task = t, onChanged = { load() }) }
+                items(tasks.take(8), key = { it.id }) { t -> TaskRow(task = t, onChanged = { load() }, onMove = { dir -> moveTask(t, dir) }) }
             }
             // Overdue / Now / Upcoming / Today's Habits (web buckets)
             if (overdue.isNotEmpty()) {

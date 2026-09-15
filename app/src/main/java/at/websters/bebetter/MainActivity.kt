@@ -157,16 +157,18 @@ fun BeBetterNav() {
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0,0,0,0),
         bottomBar = {
             if (showChrome) {
-                NavigationBar(
-                    containerColor = navBg,
-                    tonalElevation = 0.dp,
-                    modifier = Modifier
-                        .height(64.dp)
-                        .border(width = 1.dp, color = navBorder)
+                Column(
+                    Modifier.background(navBg).border(width = 1.dp, color = navBorder)
                         .windowInsetsPadding(WindowInsets.navigationBars)
                 ) {
+                    NavigationBar(
+                        containerColor = navBg,
+                        tonalElevation = 0.dp,
+                        modifier = Modifier.height(64.dp)
+                    ) {
                     bottomRoutes.take(5).forEach { (r, label, icon) ->
                         val active = isActive(r)
                         val locked = isDemo && (r == Routes.FRIENDS || r == Routes.LEADERBOARD)
@@ -180,6 +182,7 @@ fun BeBetterNav() {
                             label = { Text(label, fontSize = 10.sp, fontWeight = FontWeight.Medium, color = if (active) BeBetterTokens.Accent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)) },
                             colors = NavigationBarItemDefaults.colors(indicatorColor = BeBetterTokens.Accent.copy(alpha = 0.12f))
                         )
+                    }
                     }
                 }
             }

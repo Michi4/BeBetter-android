@@ -219,7 +219,10 @@ fun BeBetterNav() {
                             }
                         },
                         actions = {
-                            CompositionLocalProvider(LocalMinimumInteractiveComponentEnforcement provides false) {
+                            CompositionLocalProvider(
+                                LocalMinimumInteractiveComponentEnforcement provides false,
+                                @Suppress("DEPRECATION") androidx.compose.material3.LocalMinimumTouchTargetEnforcement provides false
+                            ) {
                             // theme toggle: Sun/Moon via WbSunny/DarkMode
                             IconButton(onClick = {
                                 scope.launch {

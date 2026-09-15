@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,6 +18,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -55,6 +57,22 @@ fun HabitsScreen(onDetail: (String) -> Unit) {
     }
     LaunchedEffect(Unit) { load() }
 
+    var historyMonth by remember { mutableStateOf(java.time.YearMonth.now()) }
+    var historySelected by remember { mutableStateOf(java.time.LocalDate.now().toString()) }
+    var historyMonthData by remember { mutableStateOf<Map<String, at.websters.bebetter.data.GridDay>>(emptyMap()) }
+    var historyDayItems by remember { mutableStateOf<List<at.websters.bebetter.data.ScheduledHabitEntry>>(emptyList()) }
+    LaunchedEffect(historyMonth) {
+        runCatching {
+            val from = historyMonth.atDay(1).toString()
+            val to = historyMonth.atEndOfMonth().toString()
+            ApiClient.get().grid(from, to).grid
+        }.getOrNull()?.let { historyMonthData = it }
+    }
+    LaunchedEffect(historySelected) {
+        val d = runCatching { ApiClient.get().gridDay(historySelected) }.getOrNull()
+        historyDayItems = d?.scheduledHabits ?: emptyList()
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
@@ -82,72 +100,92 @@ fun HabitsScreen(onDetail: (String) -> Unit) {
             item { SectionTitle("History") }
             item {
                 BeBetterCard(modifier = Modifier.fillMaxWidth()) {
+                    val todayStr = java.time.LocalDate.now().toString()
+                    val monthLabel = historyMonth.month.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.ENGLISH) + " " + historyMonth.year
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = {}, modifier = Modifier.size(44.dp)) { Icon(Icons.Filled.ChevronLeft, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
+                        IconButton(onClick = { historyMonth = historyMonth.minusMonths(1) }, modifier = Modifier.size(44.dp)) { Icon(Icons.Filled.ChevronLeft, "Previous month", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("September 2026", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                            Text("Tuesday, Sep 15 · Today", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                            Text(monthLabel, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            val selD = runCatching { java.time.LocalDate.parse(historySelected) }.getOrNull()
+                            Text(if (historySelected == todayStr) "${selD?.dayOfWeek?.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.ENGLISH)}, ${selD?.month?.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.ENGLISH)} ${selD?.dayOfMonth} · Today" else selD?.let { "${it.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.ENGLISH)}, ${it.month.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.ENGLISH)} ${it.dayOfMonth}" } ?: "", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                         }
-                        IconButton(onClick = {}, modifier = Modifier.size(44.dp)) { Icon(Icons.Filled.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f), modifier = Modifier.size(18.dp)) }
+                        IconButton(
+                            onClick = { if (historyMonth < java.time.YearMonth.now()) historyMonth = historyMonth.plusMonths(1) },
+                            enabled = historyMonth < java.time.YearMonth.now(),
+                            modifier = Modifier.size(44.dp)
+                        ) { Icon(Icons.Filled.ChevronRight, "Next month", tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (historyMonth < java.time.YearMonth.now()) 1f else 0.3f), modifier = Modifier.size(18.dp)) }
                     }
-                    // Mo-Su header
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        listOf("Mo","Tu","We","Th","Fr","Sa","Su").forEach { d -> Text(d, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
-                    }
-                    // premium mock grid 5 rows to approximate screenshot - September 2026 has 1 on Tuesday
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        // row1: offset 1 blank, 1-6
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Box(Modifier.weight(1f).aspectRatio(1f))
-                            for (d in 1..6) {
-                                val isGreen = d in 1..5
-                                val bg = if (isGreen) BeBetterTokens.AccentBtnHover else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                                val isToday = d == 15
-                                Box(Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(10.dp)).background(bg).then(if (isToday) Modifier.border(1.5.dp, BeBetterTokens.Accent, RoundedCornerShape(10.dp)) else Modifier), contentAlignment = Alignment.Center) {
-                                    Text("$d", fontSize = 13.sp, fontWeight = if (isToday) FontWeight.Bold else FontWeight.Medium, color = if (isGreen) Color.White else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
-                                }
-                            }
-                        }
-                        // row2: 7-13
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            for (d in 7..13) {
-                                val isGreen = d in 7..13
-                                val bg = if (isGreen) BeBetterTokens.AccentBtnHover else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                                Box(Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(10.dp)).background(bg).then(if (d==15) Modifier.border(1.5.dp, BeBetterTokens.Accent, RoundedCornerShape(10.dp)) else Modifier), contentAlignment = Alignment.Center) {
-                                    Text("$d", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.White)
-                                }
-                            }
-                        }
-                        // row3: 14-20 with 15 selected ring
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            for (d in 14..20) {
-                                val isGreen = d == 14
-                                val isSelected = d == 15
-                                val bg = when {
-                                    isSelected -> MaterialTheme.colorScheme.surface
-                                    isGreen -> BeBetterTokens.AccentBtnHover
-                                    else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                                }
-                                Box(Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(10.dp)).background(bg).then(if (isSelected) Modifier.border(1.5.dp, BeBetterTokens.Accent, RoundedCornerShape(10.dp)) else Modifier), contentAlignment = Alignment.Center) {
-                                    Text("$d", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) MaterialTheme.colorScheme.onSurface else if (isGreen) Color.White else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
-                                }
-                            }
-                        }
-                        // rows 4-5 blanks
-                        repeat(2) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                repeat(7) { idx ->
-                                    val d = 21 + it*7 + idx
-                                    if (d <= 30) Box(Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)), contentAlignment = Alignment.Center) { Text("$d", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) } else Box(Modifier.weight(1f).aspectRatio(1f))
-                                }
-                            }
+                    // Mo Tu We Th Fr Sa Su header
+                    Row(Modifier.fillMaxWidth()) {
+                        listOf("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su").forEach { d ->
+                            Text(d, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         }
                     }
-                    Button(onClick = {}, modifier = Modifier.fillMaxWidth().height(40.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurface)) { Text("Today", fontSize = 13.sp) }
+                    // month cells: lead blanks Mon-start, then days, colored by real /grid data
+                    val lead = historyMonth.atDay(1).dayOfWeek.value - 1
+                    val daysInMonth = historyMonth.lengthOfMonth()
+                    val rows = (lead + daysInMonth + 6) / 7
+                    for (r in 0 until rows) {
+                        Row(Modifier.fillMaxWidth()) {
+                            for (c in 0 until 7) {
+                                val idx = r * 7 + c
+                                val dayNum = idx - lead + 1
+                                Box(Modifier.weight(1f).aspectRatio(1f).padding(3.dp), contentAlignment = Alignment.Center) {
+                                    if (dayNum in 1..daysInMonth) {
+                                        val ds = "${historyMonth.year}-${historyMonth.monthValue.toString().padStart(2, '0')}-$dayNum"
+                                        val info = historyMonthData[ds]
+                                        val scheduled = info?.scheduled ?: 0
+                                        val completed = info?.completed ?: 0
+                                        val ratio = if (scheduled > 0) completed.toFloat() / scheduled else if (completed > 0 || (info?.tasks ?: 0) > 0) 1f else 0f
+                                        val bg = when {
+                                            ratio >= 1f -> androidx.compose.ui.graphics.Color(0xFF10B981)
+                                            ratio > 0.5f -> androidx.compose.ui.graphics.Color(0xFF047857)
+                                            ratio > 0f -> androidx.compose.ui.graphics.Color(0xFF022C22)
+                                            else -> androidx.compose.ui.graphics.Color(0x991F2937)
+                                        }
+                                        val fg = when {
+                                            ratio > 0.5f -> androidx.compose.ui.graphics.Color.White
+                                            ratio > 0f -> BeBetterTokens.Emerald300
+                                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                        }
+                                        val future = ds > todayStr
+                                        Box(
+                                            Modifier
+                                                .fillMaxSize()
+                                                .alpha(if (future) 0.5f else 1f)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(bg)
+                                                .then(if (ds == historySelected) Modifier.border(2.dp, BeBetterTokens.Accent, RoundedCornerShape(8.dp)) else Modifier)
+                                                .clickable { historySelected = ds },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text("$dayNum", fontSize = 13.sp, fontWeight = if (ds == todayStr) FontWeight.Bold else FontWeight.Normal, color = fg)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Button(
+                        onClick = { historySelected = todayStr; historyMonth = java.time.YearMonth.now() },
+                        modifier = Modifier.fillMaxWidth().height(40.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color(0xCC1F2937), contentColor = androidx.compose.ui.graphics.Color(0xFFD1D5DB))
+                    ) { Text("Today", fontSize = 12.sp, fontWeight = FontWeight.Medium) }
+                    // selected day detail: x/y done + list
+                    val info = historyMonthData[historySelected]
+                    val sc = info?.scheduled ?: 0
+                    val cc = info?.completed ?: 0
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("0/6 done", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                        Text("$cc/$sc done", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                         Box(Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
-                            Box(Modifier.fillMaxHeight().fillMaxWidth(0f).background(BeBetterTokens.Accent))
+                            Box(Modifier.fillMaxHeight().fillMaxWidth(if (sc > 0) (cc.toFloat() / sc).coerceIn(0f, 1f) else 0f).background(BeBetterTokens.Accent))
+                        }
+                    }
+                    historyDayItems.forEach { h ->
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(if (h.completed) "✓" else "○", fontSize = 12.sp, color = if (h.completed) BeBetterTokens.Accent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                            Text("${h.emoji ?: ""} ${h.title ?: ""}".trim(), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }

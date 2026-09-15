@@ -15,6 +15,7 @@ interface BeBetterApi {
     @POST("auth/reset-password") suspend fun resetPassword(@Body body: Map<String, String>): Map<String, String>
     @POST("auth/change-password") suspend fun changePassword(@Body body: Map<String, String>): Map<String, String>
     @POST("auth/logout") suspend fun logout(): Map<String, String>
+    @HTTP(method = "DELETE", path = "auth/account", hasBody = true) suspend fun deleteAccount(@Body body: Map<String, String>): Map<String, String>
 
     // ---- Habits ----
     @GET("habits") suspend fun habits(): HabitsResponse

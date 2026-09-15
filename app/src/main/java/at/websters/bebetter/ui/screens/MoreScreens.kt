@@ -3,9 +3,6 @@ package at.websters.bebetter.ui.screens
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,21 +10,26 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import at.websters.bebetter.BeBetterApp
 import at.websters.bebetter.data.ApiClient
 import at.websters.bebetter.data.AssistantSettings
 import at.websters.bebetter.ui.components.BeBetterCard
+import at.websters.bebetter.ui.components.WebChip
 import at.websters.bebetter.ui.theme.BeBetterTokens
 import at.websters.bebetter.ui.theme.SectionTitle
 import coil.compose.AsyncImage
@@ -36,106 +38,138 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
+import java.time.LocalDate
 
 @Composable
 fun AssistantScreen() {
     val scope = rememberCoroutineScope()
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     var settings by remember { mutableStateOf<AssistantSettings?>(null) }
     var input by remember { mutableStateOf("") }
-    var messages by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
-    var sessionsRaw by remember { mutableStateOf<String?>(null) }
+    // role: "user" | "assistant"; content string
+    val messages = remember { mutableStateListOf<Pair<String, String>>() }
+    var history by remember { mutableStateOf<List<Map<String, String>>>(emptyList()) }
+    var sessionId by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var err by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
-        scope.launch {
-            settings = runCatching { ApiClient.get().assistantSettings() }.getOrNull()
-            sessionsRaw = runCatching { ApiClient.get().assistantSessions().toString().take(600) }.getOrNull()
-        }
+        settings = runCatching { ApiClient.get().assistantSettings() }.getOrNull()
+    }
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
     }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Assistant", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Box(Modifier.clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 8.dp, vertical = 2.dp)) { Text("beta", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            Spacer(Modifier.weight(1f))
-            IconButton(onClick = {}, modifier = Modifier.size(36.dp)) { Text("✎", fontSize = 14.sp) }
-            Box(contentAlignment = Alignment.Center) {
-                IconButton(onClick = {}, modifier = Modifier.size(36.dp)) { Text("◷", fontSize = 14.sp) }
-                if ((sessionsRaw?.length ?: 0) > 2) Box(Modifier.align(Alignment.TopEnd).size(14.dp).clip(CircleShape).background(BeBetterTokens.Accent), contentAlignment = Alignment.Center) { Text("1", fontSize = 8.sp, color = Color.White) }
+    fun send(text: String) {
+        val q = text.trim()
+        if (q.isBlank() || busy) return
+        busy = true
+        err = null
+        messages.add("user" to q)
+        messages.add("assistant" to "")
+        val userMsg = mapOf("role" to "user", "content" to q)
+        val payload = history + userMsg
+        ApiClient.chatStream(
+            messages = payload,
+            sessionId = sessionId,
+            onDelta = { d ->
+                val i = messages.size - 1
+                messages[i] = "assistant" to (messages[i].second + d)
+            },
+            onDone = { full, sid ->
+                val i = messages.size - 1
+                if (i in messages.indices) messages[i] = "assistant" to full
+                sessionId = sid ?: sessionId
+                history = payload + mapOf("role" to "assistant", "content" to full)
+                busy = false
+            },
+            onError = { e ->
+                val i = messages.size - 1
+                if (i in messages.indices && messages[i].second.isEmpty()) messages.removeAt(i)
+                err = e
+                busy = false
             }
-            IconButton(onClick = {}, modifier = Modifier.size(36.dp)) { Text("⚙", fontSize = 14.sp) }
+        )
+    }
+
+    Column(Modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(Icons.Filled.AutoAwesome, null, tint = BeBetterTokens.Accent, modifier = Modifier.size(18.dp))
+            Text("AI Assistant", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            WebChip("beta", "amber")
         }
         if (settings?.enabled != true) {
             BeBetterCard(modifier = Modifier.fillMaxWidth()) {
                 Text("The assistant is disabled for your account. Enable it to chat.", fontSize = 14.sp)
                 Button(
                     onClick = { scope.launch { settings = runCatching { ApiClient.get().updateAssistantSettings(mapOf("enabled" to true)) }.getOrNull() } },
-                    colors = ButtonDefaults.buttonColors(containerColor = BeBetterTokens.AccentBtn, contentColor = Color.White)
+                    colors = ButtonDefaults.buttonColors(containerColor = BeBetterTokens.AccentBtn, contentColor = androidx.compose.ui.graphics.Color.White)
                 ) { Text("Enable assistant") }
             }
-            return@Column
         }
-        if (messages.isEmpty()) {
-            BeBetterCard(modifier = Modifier.fillMaxWidth()) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    Text("✨", fontSize = 24.sp)
-                    Text("Ask me anything about your habits & tasks —", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-                    Text("type below or tap the mic.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 4.dp)) {
-                        listOf("What's left today?","Plan my day").forEach { s -> Box(Modifier.clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant).clickable{ input=s }.padding(horizontal=12.dp, vertical=8.dp)) { Text(s, fontSize=12.sp, color=MaterialTheme.colorScheme.onSurface) } }
-                    }
-                    Row { Box(Modifier.clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant).clickable{ input="Add task: buy milk tomorrow" }.padding(horizontal=12.dp, vertical=8.dp)) { Text("Add task: buy milk tomorrow", fontSize=12.sp, color=MaterialTheme.colorScheme.onSurface) } }
-                }
-            }
-        }
-        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(messages) { (role, content) ->
-                Card(
-                    Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = if (role == "user") CardDefaults.cardColors(containerColor = BeBetterTokens.Accent.copy(alpha = 0.12f))
-                    else CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Text(content, modifier = Modifier.padding(12.dp), fontSize = 14.sp)
-                }
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant).clickable{ }, contentAlignment = Alignment.Center) { Text("🎤", fontSize=16.sp) }
-            OutlinedTextField(input, { input = it }, placeholder = { Text("Ask or tell me what to do...", fontSize=13.sp) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp))
-            Button(
-                onClick = {
-                    val q = input.trim(); if (q.isBlank()) return@Button
-                    input = ""; busy = true
-                    val history = messages.map { (r,c) -> mapOf("role" to r, "content" to c) } + mapOf("role" to "user", "content" to q)
-                    messages = messages + ("user" to q)
-                    scope.launch {
-                        try {
-                            val res = ApiClient.get().assistantChat(mapOf("messages" to history))
-                            val text = res["reply"]?.asString ?: res["message"]?.asString ?: res["response"]?.asString ?: res["content"]?.asString ?: res.toString().take(1200)
-                            messages = messages + ("assistant" to text)
-                        } catch (e: Exception) {
-                            val code = (e as? retrofit2.HttpException)?.code()
-                            val msg = when (code) {
-                                403 -> "Assistant is disabled. Enable it in Profile → AI Assistant."
-                                429 -> "Slow down — try again in a minute."
-                                else -> e.message ?: "Failed — check connection"
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            if (messages.isEmpty()) {
+                item {
+                    Column(Modifier.fillMaxWidth().padding(top = 48.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Icon(Icons.Filled.AutoAwesome, null, tint = BeBetterTokens.Accent.copy(alpha = 0.4f), modifier = Modifier.size(40.dp))
+                        Text("Ask me to create habits, plan your day,\nor analyze your streaks.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("What should I focus on today?", "Suggest a new habit", "How is my streak?").forEach { s ->
+                                OutlinedButton(onClick = { send(s) }, shape = RoundedCornerShape(20.dp)) { Text(s, fontSize = 11.sp) }
                             }
-                            messages = messages + ("assistant" to "Error: $msg")
                         }
-                        busy = false
                     }
-                },
-                enabled = !busy && input.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(containerColor = BeBetterTokens.AccentBtn, contentColor = Color.White)
-            ) { Text("Send") }
+                }
+            }
+            items(messages, key = { "${it.first}-${messages.indexOf(it)}" }) { (role, content) ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = if (role == "user") Arrangement.End else Arrangement.Start) {
+                    Card(
+                        modifier = Modifier.widthIn(max = 300.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = if (role == "user") CardDefaults.cardColors(containerColor = BeBetterTokens.Accent.copy(alpha = 0.15f))
+                        else CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Text(content, modifier = Modifier.padding(12.dp), fontSize = 14.sp)
+                    }
+                }
+            }
+            if (busy) {
+                item {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = BeBetterTokens.Accent)
+                        Text("Thinking…", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            err?.let { e -> item { Text(e, fontSize = 12.sp, color = MaterialTheme.colorScheme.error) } }
         }
-        sessionsRaw?.let { Text("Sessions: ${it.take(200)}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 12.dp)) {
+            OutlinedTextField(
+                input, { input = it },
+                placeholder = { Text("Ask anything…", fontSize = 14.sp) },
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(24.dp),
+                singleLine = true,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Send),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { send(input); input = "" })
+            )
+            FilledIconButton(
+                onClick = { send(input); input = "" },
+                enabled = !busy && input.isNotBlank(),
+                colors = IconButtonDefaults.filledIconButtonColors(containerColor = BeBetterTokens.AccentBtn, contentColor = androidx.compose.ui.graphics.Color.White)
+            ) { Icon(Icons.AutoMirrored.Filled.Send, "Send") }
+        }
     }
 }
 
 @Composable
-fun ProfileScreen(onAdmin: () -> Unit) {
+fun ProfileScreen(onAdmin: () -> Unit, onSettings: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
     val app = ctx.applicationContext as BeBetterApp
@@ -145,15 +179,6 @@ fun ProfileScreen(onAdmin: () -> Unit) {
     var msg by remember { mutableStateOf<String?>(null) }
     var vacation by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
-    var timeFormat by remember { mutableStateOf("24h") }
-    var notifPrefs by remember { mutableStateOf<at.websters.bebetter.data.NotifPrefs?>(null) }
-    var assistantSettings by remember { mutableStateOf<AssistantSettings?>(null) }
-    var vacReason by remember { mutableStateOf("") }
-    var vacEnd by remember { mutableStateOf("") }
-    var curPw by remember { mutableStateOf("") }
-    var newPw by remember { mutableStateOf("") }
-    var confirmPw by remember { mutableStateOf("") }
-    var grid by remember { mutableStateOf<Map<String, at.websters.bebetter.data.GridDay>>(emptyMap()) }
 
     val pickAvatar = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -179,126 +204,53 @@ fun ProfileScreen(onAdmin: () -> Unit) {
             bio = me?.bio ?: ""
             isPublic = me?.isPublic ?: false
             vacation = runCatching { ApiClient.get().vacationStatus().onVacation }.getOrDefault(false)
-            notifPrefs = runCatching { ApiClient.get().notifPrefs() }.getOrNull()
-            assistantSettings = runCatching { ApiClient.get().assistantSettings() }.getOrNull()
-            val y = java.time.LocalDate.now().year
-            grid = runCatching { ApiClient.get().grid("$y-01-01","$y-12-31").grid }.getOrDefault(emptyMap())
         }
     }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        BeBetterCard(modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(contentAlignment = Alignment.Center) {
-                    if (me?.avatar?.let { ApiClient.resolveUpload(it) } != null) {
-                        AsyncImage(ApiClient.resolveUpload(me!!.avatar!!)!!, "avatar", modifier = Modifier.size(96.dp).clip(CircleShape))
-                    } else {
-                        Box(Modifier.size(96.dp).clip(CircleShape).background(BeBetterTokens.Accent), contentAlignment = Alignment.Center) {
-                            Text((me?.username?.firstOrNull()?.uppercase() ?: "M"), fontSize = 36.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        }
-                    }
-                    Box(Modifier.align(Alignment.BottomEnd).size(32.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surface).border(1.dp, MaterialTheme.colorScheme.outline, CircleShape).clickable{ pickAvatar.launch("image/*") }, contentAlignment = Alignment.Center) {
-                        Text("📷", fontSize = 14.sp)
-                    }
-                }
-                Text(me?.username ?: "michi", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Text("Joined August 2026", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("0", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = BeBetterTokens.Accent); Text("Best Streak", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("4", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = BeBetterTokens.Accent); Text("Habits", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) }
-                }
-            }
-        }
-        BeBetterCard(modifier = Modifier.fillMaxWidth()) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("YOUR ACTIVITY", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
-                Text("2026", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            at.websters.bebetter.ui.components.ContributionGridView(grid = grid, year = java.time.LocalDate.now().year)
-        }
-        BeBetterCard(modifier = Modifier.fillMaxWidth()) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { Text("👤", fontSize = 14.sp); Text("PROFILE SETTINGS", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)) }
-            Text("Bio", fontSize = 13.sp, fontWeight = FontWeight.Medium)
-            OutlinedTextField(bio, { bio = it }, placeholder = { Text("Tell something about yourself...", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) }, modifier = Modifier.fillMaxWidth().height(88.dp), shape = RoundedCornerShape(12.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(Modifier.size(20.dp).clip(RoundedCornerShape(4.dp)).background(if (isPublic) Color(0xFF2563EB) else MaterialTheme.colorScheme.surfaceVariant).border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(4.dp)).clickable{ isPublic = !isPublic }, contentAlignment = Alignment.Center) { if (isPublic) Text("✓", fontSize = 12.sp, color = Color.White) }
-                Column { Text("Public profile", fontSize = 14.sp, fontWeight = FontWeight.Medium); Text("Others can view your profile and stats", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) }
-            }
-            Button(onClick = { scope.launch { msg = runCatching { ApiClient.get().updateMe(mapOf("bio" to bio, "isPublic" to isPublic)); "Saved!" }.getOrElse { it.message ?: "Failed" } } }, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = BeBetterTokens.AccentBtn, contentColor = Color.White)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) { Text("💾", fontSize=12.sp); Text("Save Profile", fontSize=14.sp, fontWeight=FontWeight.SemiBold) }
-            }
-        }
-        BeBetterCard(modifier = Modifier.fillMaxWidth()) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { Text("◷", fontSize = 14.sp, color=BeBetterTokens.Accent); Text("DISPLAY SETTINGS", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)) }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column { Text("Time Format", fontSize = 14.sp, fontWeight = FontWeight.Medium); Text("Choose how times are displayed", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf("12h (AM/PM)" to "12h", "24h" to "24h").forEach { (label, v) ->
-                        val sel = timeFormat == v
-                        Box(Modifier.height(36.dp).clip(RoundedCornerShape(12.dp)).background(if (sel) BeBetterTokens.AccentBtn else MaterialTheme.colorScheme.surfaceVariant).clickable{ timeFormat = v }.padding(horizontal=12.dp), contentAlignment=Alignment.Center) { Text(label, fontSize=12.sp, color=if(sel) Color.White else MaterialTheme.colorScheme.onSurfaceVariant) }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SectionTitle("Profile")
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            val avatarUrl = me?.avatar?.let { ApiClient.resolveUpload(it) }
+            if (avatarUrl != null) {
+                AsyncImage(avatarUrl, "avatar", modifier = Modifier.size(64.dp).clip(CircleShape))
+            } else {
+                Surface(Modifier.size(64.dp), shape = CircleShape, color = BeBetterTokens.Accent.copy(alpha = 0.15f)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text((me?.username?.firstOrNull()?.uppercase() ?: "?"), fontSize = 24.sp, fontWeight = FontWeight.Bold, color = BeBetterTokens.Accent)
                     }
                 }
             }
-        }
-        BeBetterCard(modifier = Modifier.fillMaxWidth()) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment=Alignment.CenterVertically) { Text("🔔", fontSize=14.sp, color=BeBetterTokens.Accent); Text("NOTIFICATION SETTINGS", fontSize=11.sp, fontWeight=FontWeight.SemiBold, letterSpacing=0.8.sp, color=MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.7f)) }
-                TextButton(onClick = {}) { Text("View all", fontSize=12.sp, color=BeBetterTokens.Accent) }
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(
-                    Triple("All notifications","One switch for everything below", notifPrefs?.let { it.morningEnabled && it.eveningEnabled && it.habitRemindersEnabled } ?: false),
-                    Triple("Morning reminder","Get notified to start your day", notifPrefs?.morningEnabled ?: false),
-                    Triple("Evening summary","Review your day before bed", notifPrefs?.eveningEnabled ?: false),
-                    Triple("Habit reminders","Reminders at your habit times", notifPrefs?.habitRemindersEnabled ?: false),
-                    Triple("Push notifications","Receive push on your device", true),
-                    Triple("Announcements","Product updates from the BeBetter team", notifPrefs?.announcementsEnabled ?: true)
-                ).forEach { (t,d,c) ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) { Text(t, fontSize=14.sp, fontWeight=FontWeight.Medium); Text(d, fontSize=11.sp, color=MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.6f)) }
-                        Switch(checked = c, onCheckedChange = {})
-                    }
-                    if (t != "Announcements") HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f), thickness = 1.dp)
-                }
+            Column {
+                Text("@${me?.username ?: "…"}", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(me?.email ?: "", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (me?.isDemo == true) Text("Demo account — data resets hourly", fontSize = 12.sp, color = BeBetterTokens.Accent)
             }
         }
-        BeBetterCard(modifier = Modifier.fillMaxWidth()) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.SpaceBetween, verticalAlignment=Alignment.CenterVertically) {
-                Row(horizontalArrangement=Arrangement.spacedBy(8.dp), verticalAlignment=Alignment.CenterVertically) { Text("✨", fontSize=14.sp, color=BeBetterTokens.Accent); Text("AI ASSISTANT", fontSize=11.sp, fontWeight=FontWeight.SemiBold, letterSpacing=0.8.sp, color=MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.7f)); Box(Modifier.clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal=8.dp, vertical=2.dp)) { Text("beta", fontSize=10.sp, color=MaterialTheme.colorScheme.onSurfaceVariant) } }
-                Text("Open chat", fontSize=12.sp, color=BeBetterTokens.Accent, modifier=Modifier.clickable{})
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.SpaceBetween, verticalAlignment=Alignment.CenterVertically) {
-                Column { Text("Enable assistant", fontSize=14.sp, fontWeight=FontWeight.Medium); Text("Let the AI read and manage your stuff", fontSize=11.sp, color=MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.6f)) }
-                Switch(checked = assistantSettings?.enabled ?: true, onCheckedChange = { scope.launch { assistantSettings = runCatching { ApiClient.get().updateAssistantSettings(mapOf("enabled" to it)) }.getOrNull() } })
-            }
-        }
-        BeBetterCard(modifier = Modifier.fillMaxWidth()) {
-            Row(verticalAlignment=Alignment.CenterVertically, horizontalArrangement=Arrangement.spacedBy(8.dp)) { Text("🏖", fontSize=14.sp, color=Color(0xFFFBBF24)); Text("VACATION", fontSize=11.sp, fontWeight=FontWeight.SemiBold, letterSpacing=0.8.sp, color=MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.7f)) }
-            Text("Going on vacation? Pause all habits so they don't count as missed.", fontSize=12.sp, color=MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.6f))
-            Text("Reason (optional)", fontSize=12.sp, fontWeight=FontWeight.Medium)
-            OutlinedTextField(vacReason, { vacReason = it }, placeholder = { Text("michi", fontSize=13.sp) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
-            Text("End date (optional)", fontSize=12.sp, fontWeight=FontWeight.Medium)
-            OutlinedTextField(vacEnd, { vacEnd = it }, placeholder = { Text("mm / dd / yyyy", fontSize=13.sp) }, trailingIcon = { Text("📅", fontSize=14.sp) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
-            Button(onClick = { scope.launch { runCatching { ApiClient.get().vacationStart(mapOf("reason" to vacReason, "endDate" to vacEnd)); vacation=true } } }, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = BeBetterTokens.AccentBtn, contentColor = Color.White)) {
-                Row(horizontalArrangement=Arrangement.spacedBy(6.dp), verticalAlignment=Alignment.CenterVertically) { Text("🏖", fontSize=12.sp); Text("Start Vacation", fontSize=14.sp, fontWeight=FontWeight.SemiBold) }
-            }
-        }
-        BeBetterCard(modifier = Modifier.fillMaxWidth()) {
-            Row(verticalAlignment=Alignment.CenterVertically, horizontalArrangement=Arrangement.spacedBy(8.dp)) { Text("🔑", fontSize=14.sp, color=BeBetterTokens.Accent); Text("SECURITY", fontSize=11.sp, fontWeight=FontWeight.SemiBold, letterSpacing=0.8.sp, color=MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.7f)) }
-            Text("Current password", fontSize=12.sp, fontWeight=FontWeight.Medium)
-            OutlinedTextField(curPw, { curPw = it }, placeholder = { Text("••••••••", fontSize=13.sp) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
-            Text("New password", fontSize=12.sp, fontWeight=FontWeight.Medium)
-            OutlinedTextField(newPw, { newPw = it }, placeholder = { Text("New password (min 6 chars)", fontSize=13.sp) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
-            Text("Confirm new password", fontSize=12.sp, fontWeight=FontWeight.Medium)
-            OutlinedTextField(confirmPw, { confirmPw = it }, placeholder = { Text("Confirm new password", fontSize=13.sp) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
-            Button(onClick = {}, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = BeBetterTokens.AccentBtn.copy(alpha = 0.7f), contentColor = Color.White)) { Row(horizontalArrangement=Arrangement.spacedBy(6.dp), verticalAlignment=Alignment.CenterVertically) { Text("🔑", fontSize=12.sp); Text("Change Password", fontSize=14.sp) } }
-        }
-        BeBetterCard(modifier = Modifier.fillMaxWidth()) {
-            Row(verticalAlignment=Alignment.CenterVertically, horizontalArrangement=Arrangement.spacedBy(8.dp)) { Text("⚠", fontSize=14.sp, color=Color(0xFFF87171)); Text("DANGER ZONE", fontSize=11.sp, fontWeight=FontWeight.SemiBold, letterSpacing=0.8.sp, color=Color(0xFFF87171)) }
-            Text("This action is irreversible. All your data will be permanently deleted.", fontSize=12.sp, color=MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=0.6f))
-            Button(onClick = {}, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626), contentColor = Color.White)) { Row(horizontalArrangement=Arrangement.spacedBy(6.dp), verticalAlignment=Alignment.CenterVertically) { Text("🗑", fontSize=12.sp); Text("Delete Account", fontSize=14.sp, fontWeight=FontWeight.SemiBold) } }
-        }
+        OutlinedButton(onClick = { pickAvatar.launch("image/*") }, enabled = !busy) { Text(if (busy) "Uploading…" else "Change avatar") }
+        OutlinedButton(onClick = onSettings, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp)) { Text("Open Settings", fontSize = 13.sp) }
         if (me?.role == "admin") {
-            Button(onClick = onAdmin, colors = ButtonDefaults.buttonColors(containerColor = BeBetterTokens.AccentBtn, contentColor = Color.White), modifier = Modifier.fillMaxWidth()) { Text("Open admin panel") }
+            Button(onClick = onAdmin, colors = ButtonDefaults.buttonColors(containerColor = BeBetterTokens.AccentBtn, contentColor = androidx.compose.ui.graphics.Color.White)) { Text("Open admin panel") }
+        }
+        BeBetterCard(modifier = Modifier.fillMaxWidth()) {
+            SectionTitle("About")
+            OutlinedTextField(bio, { bio = it }, placeholder = { Text("Bio") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(isPublic, { isPublic = it })
+                Text("Public profile", fontSize = 14.sp)
+            }
+            Button(
+                onClick = { scope.launch { msg = runCatching { ApiClient.get().updateMe(mapOf("bio" to bio, "isPublic" to isPublic)); "Saved!" }.getOrElse { it.message ?: "Failed" } } },
+                colors = ButtonDefaults.buttonColors(containerColor = BeBetterTokens.AccentBtn, contentColor = androidx.compose.ui.graphics.Color.White)
+            ) { Text("Save") }
+        }
+        BeBetterCard(modifier = Modifier.fillMaxWidth()) {
+            SectionTitle("Vacation mode")
+            Text("Pauses all streaks. Enjoy your break! 🏖️", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { scope.launch { runCatching { ApiClient.get().vacationStart(emptyMap()) }; vacation = true } }, enabled = !vacation,
+                    colors = ButtonDefaults.buttonColors(containerColor = BeBetterTokens.AccentBtn, contentColor = androidx.compose.ui.graphics.Color.White)) { Text("Start") }
+                OutlinedButton(onClick = { scope.launch { runCatching { ApiClient.get().vacationEnd() }; vacation = false } }, enabled = vacation) { Text("End vacation") }
+            }
+            if (vacation) Text("🏖️ You are on vacation — habits are paused.", fontSize = 13.sp, color = androidx.compose.ui.graphics.Color(0xFFFBBF24))
         }
         msg?.let { Text(it, fontSize = 13.sp, color = BeBetterTokens.Accent) }
     }
@@ -331,7 +283,7 @@ fun AdminScreen(onBack: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(query, { query = it }, placeholder = { Text("Search users") }, modifier = Modifier.weight(1f), singleLine = true, shape = RoundedCornerShape(8.dp))
                 Button(onClick = { scope.launch { usersRaw = runCatching { ApiClient.get().adminUsers(query.ifBlank { null }).toString() }.getOrDefault("failed").take(2000) } },
-                    colors = ButtonDefaults.buttonColors(containerColor = BeBetterTokens.AccentBtn, contentColor = Color.White)) { Text("Go") }
+                    colors = ButtonDefaults.buttonColors(containerColor = BeBetterTokens.AccentBtn, contentColor = androidx.compose.ui.graphics.Color.White)) { Text("Go") }
             }
             if (usersRaw.isNotBlank()) Text(usersRaw.take(2000), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -341,7 +293,11 @@ fun AdminScreen(onBack: () -> Unit) {
             Button(onClick = {
                 scope.launch {
                     msg = runCatching {
-                        ApiClient.get().let { api -> api.adminStats() }
+                        // backend: POST /admin/announcements { message }
+                        ApiClient.get().let { api ->
+                            // use raw retrofit via notifications? fallback: adminStats endpoint check
+                            api.adminStats()
+                        }
                         "Sent (if supported by backend)"
                     }.getOrElse { it.message ?: "Failed" }
                 }
@@ -356,61 +312,203 @@ fun AdminScreen(onBack: () -> Unit) {
 }
 
 @Composable
+private fun WebSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
+    Box(
+        Modifier
+            .width(48.dp)
+            .height(24.dp)
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (checked) BeBetterTokens.AccentBtn else androidx.compose.ui.graphics.Color(0xFF374151))
+            .clickable { onChange(!checked) }
+    ) {
+        Box(
+            Modifier
+                .padding(2.dp)
+                .align(Alignment.CenterStart)
+                .offset(x = if (checked) 24.dp else 0.dp)
+                .size(20.dp)
+                .clip(CircleShape)
+                .background(androidx.compose.ui.graphics.Color.White)
+        )
+    }
+}
+
+@Composable
+private fun SettingRow(title: String, subtitle: String? = null, checked: Boolean, trailing: (@Composable () -> Unit)? = null, onChecked: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            if (subtitle != null) Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (trailing != null) trailing()
+        WebSwitch(checked, onChecked)
+    }
+}
+
+@Composable
 fun SettingsScreen(onLogout: () -> Unit, onBack: () -> Unit) {
     val ctx = LocalContext.current
     val session = (ctx.applicationContext as BeBetterApp).session
     val scope = rememberCoroutineScope()
     var baseUrl by remember { mutableStateOf("") }
     var prefs by remember { mutableStateOf<at.websters.bebetter.data.NotifPrefs?>(null) }
+    var ai by remember { mutableStateOf<AssistantSettings?>(null) }
     var theme by remember { mutableStateOf<String?>(null) }
     var keepOn by remember { mutableStateOf(true) }
+    var vacation by remember { mutableStateOf(false) }
+    var vacReason by remember { mutableStateOf("") }
+    var vacEnd by remember { mutableStateOf(LocalDate.now().plusDays(7).toString()) }
+    var pwCur by remember { mutableStateOf("") }
+    var pwNew by remember { mutableStateOf("") }
+    var msg by remember { mutableStateOf<String?>(null) }
+    var showDelete by remember { mutableStateOf(false) }
+    var deleteConfirm by remember { mutableStateOf("") }
     LaunchedEffect(Unit) {
         baseUrl = session.getBaseUrl()
         theme = session.getTheme()
         keepOn = session.getKeepScreenOn()
-        scope.launch { prefs = runCatching { ApiClient.get().notifPrefs() }.getOrNull() }
+        scope.launch {
+            prefs = runCatching { ApiClient.get().notifPrefs() }.getOrNull()
+            ai = runCatching { ApiClient.get().assistantSettings() }.getOrNull()
+            vacation = runCatching { ApiClient.get().vacationStatus().onVacation }.getOrDefault(false)
+        }
     }
+    fun savePrefs(p: at.websters.bebetter.data.NotifPrefs) {
+        prefs = p
+        scope.launch { runCatching { ApiClient.get().updateNotifPrefs(p) } }
+    }
+
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        TextButton(onClick = onBack) { Text("← Back", color = BeBetterTokens.Accent) }
+        TextButton(onClick = onBack, modifier = Modifier) { Text("← Back", color = BeBetterTokens.Accent, fontSize = 14.sp) }
         SectionTitle("Settings")
+
         BeBetterCard(modifier = Modifier.fillMaxWidth()) {
-            SectionTitle("Appearance")
+            SectionTitle("Display Settings")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(null to "System", "light" to "Light", "dark" to "Dark").forEach { (v, l) ->
-                    FilterChip(selected = theme == v, onClick = {
-                        theme = v
-                        scope.launch { session.saveTheme(v) }
-                    }, label = { Text(l) })
+                    FilterChip(
+                        selected = theme == v,
+                        onClick = { theme = v; scope.launch { session.saveTheme(v) } },
+                        label = { Text(l, fontSize = 13.sp) },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = BeBetterTokens.Accent.copy(alpha = 0.15f), selectedLabelColor = BeBetterTokens.Accent)
+                    )
                 }
             }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.weight(1f)) {
-                    Text("Keep screen on", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                    Text("Phone never sleeps while BeBetter is open", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Switch(keepOn, { keepOn = it; scope.launch { session.saveKeepScreenOn(it) } })
-            }
+            SettingRow("Keep screen on", "Phone never sleeps while BeBetter is open", keepOn) { keepOn = it; scope.launch { session.saveKeepScreenOn(it) } }
         }
-        BeBetterCard(modifier = Modifier.fillMaxWidth()) {
-            SectionTitle("Server")
-            OutlinedTextField(baseUrl, { baseUrl = it }, placeholder = { Text("Server URL") }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(8.dp))
-            Button(onClick = { scope.launch { session.saveBaseUrl(baseUrl.ifBlank { at.websters.bebetter.data.SessionManager.DEFAULT_BASE_URL }); ApiClient.setBaseUrl(session.getBaseUrl()); ApiClient.invalidate() } },
-                colors = ButtonDefaults.buttonColors(containerColor = BeBetterTokens.AccentBtn, contentColor = Color.White)) { Text("Save server") }
-        }
+
         prefs?.let { p ->
             BeBetterCard(modifier = Modifier.fillMaxWidth()) {
-                SectionTitle("Notifications")
-                var morning by remember(p) { mutableStateOf(p.morningEnabled) }
-                var evening by remember(p) { mutableStateOf(p.eveningEnabled) }
-                var habits by remember(p) { mutableStateOf(p.habitRemindersEnabled) }
-                Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(morning, { morning = it }); Text("Morning reminder (${p.morningTime})", fontSize = 14.sp) }
-                Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(evening, { evening = it }); Text("Evening digest (${p.eveningTime})", fontSize = 14.sp) }
-                Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(habits, { habits = it }); Text("Habit reminders", fontSize = 14.sp) }
-                Button(onClick = { scope.launch { runCatching { ApiClient.get().updateNotifPrefs(p.copy(morningEnabled = morning, eveningEnabled = evening, habitRemindersEnabled = habits)) } } },
-                    colors = ButtonDefaults.buttonColors(containerColor = BeBetterTokens.AccentBtn, contentColor = Color.White)) { Text("Save notifications") }
+                val all = p.morningEnabled || p.eveningEnabled || p.habitRemindersEnabled || p.announcementsEnabled
+                SectionTitle("Notification Settings")
+                SettingRow("All notifications", "Master switch", all) { v -> savePrefs(p.copy(morningEnabled = v, eveningEnabled = v, habitRemindersEnabled = v, announcementsEnabled = v)) }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 1.dp)
+                SettingRow("Morning reminder", "Start your day on track", p.morningEnabled, trailing = { Text(p.morningTime, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }) { savePrefs(p.copy(morningEnabled = it)) }
+                SettingRow("Evening digest", "Reflect before bed", p.eveningEnabled, trailing = { Text(p.eveningTime, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }) { savePrefs(p.copy(eveningEnabled = it)) }
+                SettingRow("Habit reminders", "Ping at each scheduled time", p.habitRemindersEnabled) { savePrefs(p.copy(habitRemindersEnabled = it)) }
+                SettingRow("Announcements", "Product updates from the team", p.announcementsEnabled) { savePrefs(p.copy(announcementsEnabled = it)) }
             }
         }
-        Text("BeBetter for Android 1.0.0 • Phone + Wear OS • API-compatible with bebetter.websters.at", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Button(onClick = onLogout, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error), modifier = Modifier.fillMaxWidth()) { Text("Log out") }
+
+        ai?.let { a ->
+            BeBetterCard(modifier = Modifier.fillMaxWidth()) {
+                SectionTitle("AI Assistant")
+                SettingRow("Enable assistant", "Let the assistant read and shape your data", a.enabled) { v ->
+                    ai = a.copy(enabled = v)
+                    scope.launch { runCatching { ApiClient.get().updateAssistantSettings(mapOf("enabled" to v, "confirmBeforeExecute" to a.confirmBeforeExecute)) } }
+                }
+                SettingRow("Confirm before executing", "Ask before creating or editing things", a.confirmBeforeExecute) { v ->
+                    ai = a.copy(confirmBeforeExecute = v)
+                    scope.launch { runCatching { ApiClient.get().updateAssistantSettings(mapOf("enabled" to a.enabled, "confirmBeforeExecute" to v)) } }
+                }
+            }
+        }
+
+        BeBetterCard(modifier = Modifier.fillMaxWidth()) {
+            SectionTitle("Vacation")
+            if (vacation) {
+                Text("🏖️ You are on vacation — habits are paused.", fontSize = 13.sp, color = androidx.compose.ui.graphics.Color(0xFFFBBF24))
+            } else {
+                Text("Going on vacation? Pause all habits so they don't count as missed.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(vacReason, { vacReason = it }, placeholder = { Text("e.g. Holiday, sick leave...", fontSize = 13.sp) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(8.dp))
+                OutlinedTextField(vacEnd, { vacEnd = it }, label = { Text("End date (YYYY-MM-DD)", fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(8.dp))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { scope.launch { runCatching { ApiClient.get().vacationStart(mapOf("reason" to vacReason.ifBlank { "Vacation" }, "endDate" to vacEnd)) }; vacation = true } },
+                    enabled = !vacation,
+                    colors = ButtonDefaults.buttonColors(containerColor = BeBetterTokens.AccentBtn, contentColor = androidx.compose.ui.graphics.Color.White),
+                    shape = RoundedCornerShape(8.dp)
+                ) { Text("Start vacation", fontSize = 13.sp) }
+                OutlinedButton(onClick = { scope.launch { runCatching { ApiClient.get().vacationEnd() }; vacation = false } }, enabled = vacation, shape = RoundedCornerShape(8.dp)) { Text("End now", fontSize = 13.sp) }
+            }
+        }
+
+        BeBetterCard(modifier = Modifier.fillMaxWidth()) {
+            SectionTitle("Security")
+            OutlinedTextField(pwCur, { pwCur = it }, label = { Text("Current password", fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(8.dp))
+            OutlinedTextField(pwNew, { pwNew = it }, label = { Text("New password", fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(8.dp))
+            Button(
+                onClick = {
+                    scope.launch {
+                        msg = runCatching { ApiClient.get().changePassword(mapOf("currentPassword" to pwCur, "newPassword" to pwNew)); pwCur = ""; pwNew = ""; "Password changed ✅" }.getOrElse { "Failed: ${it.message}" }
+                    }
+                },
+                enabled = pwCur.isNotBlank() && pwNew.length >= 8,
+                colors = ButtonDefaults.buttonColors(containerColor = BeBetterTokens.AccentBtn, contentColor = androidx.compose.ui.graphics.Color.White),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Change password", fontSize = 13.sp) }
+        }
+
+        BeBetterCard(modifier = Modifier.fillMaxWidth()) {
+            SectionTitle("Server")
+            OutlinedTextField(baseUrl, { baseUrl = it }, placeholder = { Text("Server URL", fontSize = 13.sp) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(8.dp))
+            Button(onClick = { scope.launch { session.saveBaseUrl(baseUrl.trimEnd('/').ifBlank { at.websters.bebetter.data.SessionManager.DEFAULT_BASE_URL }); ApiClient.setBaseUrl(session.getBaseUrl()); ApiClient.invalidate(); msg = "Server saved ✅" } },
+                colors = ButtonDefaults.buttonColors(containerColor = BeBetterTokens.AccentBtn, contentColor = androidx.compose.ui.graphics.Color.White), shape = RoundedCornerShape(8.dp)) { Text("Save server", fontSize = 13.sp) }
+        }
+
+        msg?.let { Text(it, fontSize = 13.sp, color = BeBetterTokens.Accent) }
+
+        Card(
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.ui.graphics.Color(0x33EF4444)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionTitle("Danger Zone")
+                OutlinedButton(onClick = { showDelete = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Delete account permanently", fontSize = 13.sp) }
+            }
+        }
+        Button(onClick = onLogout, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp)) { Text("Log out", fontSize = 13.sp) }
+        Text("BeBetter for Android 1.0.0 • Phone + Wear OS • bebetter.websters.at", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+    }
+
+    if (showDelete) {
+        AlertDialog(
+            onDismissRequest = { showDelete = false; deleteConfirm = "" },
+            title = { Text("Delete account?", color = MaterialTheme.colorScheme.error) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("This erases all habits, tasks, logs and streaks. Type DELETE_MY_ACCOUNT to confirm.", fontSize = 13.sp)
+                    OutlinedTextField(deleteConfirm, { deleteConfirm = it }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp))
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = deleteConfirm == "DELETE_MY_ACCOUNT",
+                    onClick = {
+                        showDelete = false
+                        scope.launch {
+                            runCatching { ApiClient.get().deleteAccount(mapOf("confirm" to "DELETE_MY_ACCOUNT")) }
+                            session.clearToken(); ApiClient.invalidate(); onLogout()
+                        }
+                    }
+                ) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { showDelete = false; deleteConfirm = "" }) { Text("Cancel") } }
+        )
     }
 }

@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -160,40 +161,47 @@ fun BeBetterNav() {
         contentWindowInsets = WindowInsets(0,0,0,0),
         bottomBar = {
             if (showChrome) {
-                Column(
-                    Modifier.background(navBg).border(width = 1.dp, color = navBorder)
-                        .windowInsetsPadding(WindowInsets.navigationBars)
-                ) {
+                Column(Modifier.background(navBg)) {
+                    HorizontalDivider(color = navBorder, thickness = 1.dp)
                     NavigationBar(
                         containerColor = navBg,
                         tonalElevation = 0.dp,
+                        windowInsets = WindowInsets(0),
                         modifier = Modifier.height(64.dp)
                     ) {
-                    bottomRoutes.take(5).forEach { (r, label, icon) ->
-                        val active = isActive(r)
-                        val locked = isDemo && (r == Routes.FRIENDS || r == Routes.LEADERBOARD)
-                        NavigationBarItem(
-                            selected = active,
-                            onClick = {
-                                if (locked) nav.navigate(Routes.PROFILE)
-                                else nav.navigate(r) { launchSingleTop = true; popUpTo(Routes.DASHBOARD) { saveState = true }; restoreState = true }
-                            },
-                            icon = { Icon(icon, label, tint = if (active) BeBetterTokens.Accent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f), modifier = Modifier.size(22.dp)) },
-                            label = { Text(label, fontSize = 10.sp, fontWeight = FontWeight.Medium, color = if (active) BeBetterTokens.Accent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)) },
-                            colors = NavigationBarItemDefaults.colors(indicatorColor = BeBetterTokens.Accent.copy(alpha = 0.12f))
-                        )
+                        bottomRoutes.take(5).forEach { (r, label, icon) ->
+                            val active = isActive(r)
+                            val locked = isDemo && (r == Routes.FRIENDS || r == Routes.LEADERBOARD)
+                            NavigationBarItem(
+                                selected = active,
+                                onClick = {
+                                    if (locked) nav.navigate(Routes.PROFILE)
+                                    else nav.navigate(r) { launchSingleTop = true; popUpTo(Routes.DASHBOARD) { saveState = true }; restoreState = true }
+                                },
+                                alwaysShowLabel = true,
+                                icon = { Icon(icon, label, tint = if (active) BeBetterTokens.Accent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f), modifier = Modifier.size(22.dp)) },
+                                label = { Text(label, fontSize = 10.sp, fontWeight = FontWeight.Medium, color = if (active) BeBetterTokens.Accent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)) },
+                                colors = NavigationBarItemDefaults.colors(
+                                    indicatorColor = BeBetterTokens.Accent.copy(alpha = 0.12f),
+                                    selectedIconColor = BeBetterTokens.Accent,
+                                    selectedTextColor = BeBetterTokens.Accent,
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                                )
+                            )
+                        }
                     }
-                    }
+                    Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
                 }
             }
         },
         topBar = {
             if (showChrome) {
-                Column {
+                Column(Modifier.background(navBg)) {
                     TopAppBar(
                         modifier = Modifier
-                            .height(48.dp)
-                            .windowInsetsPadding(WindowInsets.statusBars),
+                            .windowInsetsPadding(WindowInsets.statusBars)
+                            .height(48.dp),
                         colors = TopAppBarDefaults.topAppBarColors(containerColor = navBg, scrolledContainerColor = navBg),
                         title = {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -240,6 +248,8 @@ fun BeBetterNav() {
                             // avatar
                             Box(
                                 modifier = Modifier
+                                    .clip(CircleShape)
+                                    .clickable { nav.navigate(Routes.PROFILE) }
                                     .padding(end = 4.dp)
                                     .size(32.dp)
                                     .clip(CircleShape)
@@ -325,7 +335,7 @@ fun BeBetterNav() {
             composable(Routes.LEADERBOARD) { LeaderboardScreen() }
             composable(Routes.NOTIFICATIONS) { NotificationsScreen() }
             composable(Routes.ASSISTANT) { AssistantScreen() }
-            composable(Routes.PROFILE) { ProfileScreen(onAdmin = { nav.navigate(Routes.ADMIN) }) }
+            composable(Routes.PROFILE) { ProfileScreen(onAdmin = { nav.navigate(Routes.ADMIN) }, onSettings = { nav.navigate(Routes.SETTINGS) }) }
             composable(Routes.ADMIN) { AdminScreen(onBack = { nav.popBackStack() }) }
             composable(Routes.SETTINGS) {
                 SettingsScreen(

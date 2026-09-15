@@ -8,6 +8,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -45,6 +47,7 @@ fun DashboardScreen(
     var loading by remember { mutableStateOf(true) }
     var quickTask by remember { mutableStateOf("") }
     var showCreate by remember { mutableStateOf(false) }
+    var showAllTasks by remember { mutableStateOf(false) }
     var createMode by remember { mutableStateOf("task") }
     var clockTick by remember { mutableStateOf(0) }
 
@@ -101,25 +104,27 @@ fun DashboardScreen(
     val upcoming = scheduled.filter { h -> val t = h.scheduledTime; t != null && slotMinutes(t) > now + 30 && h.completedToday != true && !hasBreak(h) }
     val unscheduled = scheduled.filter { it.scheduledTime == null }
 
-    fun moveTask(task: at.websters.bebetter.data.Task, dir: Int) {
-        val ids = tasks.map { it.id }.toMutableList()
-        val idx = ids.indexOf(task.id)
-        if (idx < 0) return
-        ids.removeAt(idx)
-        val newIdx = (idx + dir).coerceIn(0, ids.size)
-        ids.add(newIdx, task.id)
-        val byId = tasks.associateBy { it.id }
-        tasks = ids.mapNotNull { byId[it] } + tasks.filter { it.id !in ids }
-        scope.launch { runCatching { ApiClient.get().reorderTasks(mapOf("ids" to ids)) } }
+    fun moveTask(t: at.websters.bebetter.data.Task, dir: Int) {
+        val ids = tasks.map { it.id }
+        val fi = ids.indexOf(t.id)
+        if (fi < 0) return
+        val ni = (fi + dir).coerceIn(0, ids.size - 1)
+        if (ni == fi) return
+        val newIds = ids.toMutableList().apply { removeAt(fi); add(ni, t.id) }
+        tasks = newIds.mapNotNull { id -> tasks.firstOrNull { it.id == id } }
+        scope.launch {
+            try { ApiClient.get().reorderTasks(mapOf("ids" to newIds)) } catch (_: Exception) { load() }
+        }
     }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        floatingActionButtonPosition = FabPosition.Center,
+        contentWindowInsets = WindowInsets(0),
+        floatingActionButtonPosition = FabPosition.Center, // web: centered above bottom nav
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { createMode = "task"; showCreate = true },
-                containerColor = BeBetterTokens.AccentBtnHover,
+                containerColor = BeBetterTokens.AccentBtnHover, // emerald-600 like web FAB
                 contentColor = androidx.compose.ui.graphics.Color.White,
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.size(56.dp)
@@ -259,7 +264,17 @@ fun DashboardScreen(
             if (tasks.isEmpty()) {
                 item { Text("No tasks for today", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) }
             } else {
-                items(tasks.take(8), key = { it.id }) { t -> TaskRow(task = t, onChanged = { load() }, onMove = { dir -> moveTask(t, dir) }) }
+                val visible = if (showAllTasks || tasks.size <= 5) tasks else tasks.take(5)
+                items(visible) { t -> TaskRow(task = t, onChanged = { load() }, onMove = { dir -> moveTask(t, dir) }) }
+                if (tasks.size > 5) {
+                    item {
+                        TextButton(onClick = { showAllTasks = !showAllTasks }) {
+                            Icon(if (showAllTasks) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown, null, tint = BeBetterTokens.Accent, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(if (showAllTasks) "Show less" else "Show more (${tasks.size - 5} remaining)", color = BeBetterTokens.Accent, fontSize = 12.sp)
+                        }
+                    }
+                }
             }
             // Overdue / Now / Upcoming / Today's Habits (web buckets)
             if (overdue.isNotEmpty()) {

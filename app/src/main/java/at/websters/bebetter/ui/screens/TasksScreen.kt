@@ -32,6 +32,21 @@ fun TasksScreen() {
     }
     LaunchedEffect(Unit) { load() }
 
+    fun moveTask(t: Task, dir: Int) {
+        val today = tasks.filter { it.isDueToday }
+        val ids = today.map { it.id }
+        val fi = ids.indexOf(t.id)
+        if (fi < 0) return
+        val ni = (fi + dir).coerceIn(0, ids.size - 1)
+        if (ni == fi) return
+        val newIds = ids.toMutableList().apply { removeAt(fi); add(ni, t.id) }
+        val byId = tasks.associateBy { it.id }
+        tasks = newIds.mapNotNull { byId[it] } + tasks.filter { !newIds.contains(it.id) }
+        scope.launch {
+            try { ApiClient.get().reorderTasks(mapOf("ids" to newIds)) } catch (_: Exception) { load() }
+        }
+    }
+
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Tasks", style = MaterialTheme.typography.headlineSmall)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -46,8 +61,7 @@ fun TasksScreen() {
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
             items(tasks.filter { it.isDueToday }) { t ->
-                TaskRow(task = t, onChanged = { load() })
-                // long-press actions simplified: delete via swipe replacement row
+                TaskRow(task = t, onChanged = { load() }, onMove = { dir -> moveTask(t, dir) })
             }
             item {
                 if (tasks.none { it.isDueToday }) Text("All clear! 🎉")

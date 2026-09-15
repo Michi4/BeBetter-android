@@ -12,6 +12,8 @@ import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -86,35 +88,35 @@ fun HabitRow(habit: Habit, onOpen: () -> Unit, onToggled: () -> Unit) {
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(Modifier.padding(12.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            // left circular check / camera button (w-11 h-11)
-            FilledIconButton(
-                onClick = {
-                    if (done || busy) return@FilledIconButton
-                    busy = true
-                    scope.launch {
-                        try {
-                            val api = ApiClient.get()
-                            api.completeHabit(mapOf("habitId" to habit.id, "scheduledTime" to habit.scheduledTime, "status" to "completed"))
-                            onToggled()
-                        } catch (_: Exception) {}
-                        busy = false
-                    }
-                },
-                modifier = Modifier.size(44.dp),
-                shape = CircleShape,
-                colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = if (done) BeBetterTokens.Accent.copy(alpha = 0.20f) else MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = if (done) BeBetterTokens.Accent else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            ) {
-                Icon(
-                    when {
-                        needsCam && !done -> Icons.Filled.CameraAlt
-                        else -> Icons.Filled.CheckCircle
+            // left circular check button: empty ring when unchecked (web: border-2 rounded-full)
+            Box(
+                Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(if (done) BeBetterTokens.Accent else Color.Transparent)
+                    .border(
+                        2.dp,
+                        if (done) BeBetterTokens.Accent else MaterialTheme.colorScheme.outline,
+                        CircleShape
+                    )
+                    .clickable(enabled = !busy && !done) {
+                        busy = true
+                        scope.launch {
+                            try {
+                                val api = ApiClient.get()
+                                api.completeHabit(mapOf("habitId" to habit.id, "scheduledTime" to habit.scheduledTime, "status" to "completed"))
+                                onToggled()
+                            } catch (_: Exception) {}
+                            busy = false
+                        }
                     },
-                    contentDescription = if (done) "Completed" else "Complete",
-                    modifier = Modifier.size(18.dp)
-                )
+                contentAlignment = Alignment.Center
+            ) {
+                when {
+                    done -> Icon(Icons.Filled.Check, "Completed", tint = Color.White, modifier = Modifier.size(18.dp))
+                    needsCam -> Icon(Icons.Filled.CameraAlt, "Complete with photo", tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
+                    // unchecked: intentionally empty
+                }
             }
             Column(Modifier.weight(1f)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -159,14 +161,18 @@ fun TaskRow(task: Task, onChanged: () -> Unit, onMove: ((Int) -> Unit)? = null) 
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
     val done = task.isCompletedToday
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // mobile move buttons (web TaskCard: ChevronUp/ChevronDown)
         if (onMove != null) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                IconButton(onClick = { onMove(-1) }, modifier = Modifier.size(20.dp)) {
-                    Text("∧", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f))
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(0.dp)
+            ) {
+                IconButton(onClick = { onMove(-1) }, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Filled.KeyboardArrowUp, "Move up", tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(16.dp))
                 }
-                IconButton(onClick = { onMove(1) }, modifier = Modifier.size(20.dp)) {
-                    Text("∨", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f))
+                IconButton(onClick = { onMove(1) }, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Filled.KeyboardArrowDown, "Move down", tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(16.dp))
                 }
             }
         }
@@ -199,6 +205,7 @@ fun TaskRow(task: Task, onChanged: () -> Unit, onMove: ((Int) -> Unit)? = null) 
                 Text(
                     task.title, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     color = if (done) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface,
+                    textDecoration = if (done) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
                     modifier = Modifier.weight(1f, fill = false)
                 )
                 if (!task.scheduledTime.isNullOrBlank()) WebChip(formatTimeWeb(task.scheduledTime))
@@ -232,6 +239,11 @@ fun SectionHeader(title: String, onSeeAll: (() -> Unit)? = null) {
     }
 }
 
+// ContributionGridView — exact replica of ContributionGrid.vue
+// Monday-start week columns, cell 10dp / gap 3dp / day-label gutter 24dp,
+// absolute month labels at week-of-month, today ring, Less/More legend,
+// auto-scroll so TODAY sits centered (web scrollToToday math).
+
 @Composable
 fun ContributionGridView(
     grid: Map<String, GridDay>,
@@ -241,70 +253,159 @@ fun ContributionGridView(
     onDayClick: ((String) -> Unit)? = null
 ) {
     val scroll = androidx.compose.foundation.rememberScrollState()
-    val start = LocalDate.of(year, 1, 1)
-    var first = start
-    // web: week starts Sunday (0), align Jan 1 to Sunday
-    while (first.dayOfWeek.value % 7 != 0) first = first.minusDays(1)
-    val months = listOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
-    // auto-scroll to September/October like screenshot (center ~ today)
-    LaunchedEffect(year, grid) {
-        // scroll to ~ 2/3 year to mimic web where today is visible
-        kotlinx.coroutines.delay(100)
-        scroll.animateScrollTo((scroll.maxValue * 0.55).toInt().coerceAtLeast(0))
-    }
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.horizontalScroll(scroll)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.padding(start = 24.dp)) {
-            // month headers anchored to week start — web does exact math, we approximate with spacer
-            months.forEachIndexed { i, label ->
-                val monthStart = LocalDate.of(year, i+1, 1)
-                val weekIndex = java.time.temporal.ChronoUnit.WEEKS.between(first, monthStart.minusDays((monthStart.dayOfWeek.value % 7).toLong())).toInt()
-                val offset = (weekIndex * 15) // 12 + 3
-                Box(Modifier.width(30.dp)) { Text(label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)) }
+    val cellDp = 10
+    val gapDp = 3
+    val gutterDp = 24
+
+    // ---- weeks: column-major, Monday first, exactly like web ----
+    data class Cell(val date: String?, val day: GridDay?)
+    val weeks: List<List<Cell>> = remember(grid, year) {
+        val jan1 = java.time.LocalDate.of(year, 1, 1)
+        val dec31 = java.time.LocalDate.of(year, 12, 31)
+        val startDow = jan1.dayOfWeek.value - 1 // Mon=0
+        val first = jan1.minusDays(startDow.toLong())
+        val totalDays = java.time.temporal.ChronoUnit.DAYS.between(first, dec31).toInt() + 1
+        val nWeeks = (totalDays + 6) / 7
+        (0 until nWeeks).map { w ->
+            (0 until 7).map { d ->
+                val date = first.plusDays((w * 7 + d).toLong())
+                if (date.year != year) Cell(null, null)
+                else {
+                    val ds = date.toString()
+                    Cell(ds, grid[ds])
+                }
             }
         }
-        for (row in 0 until 7) {
-            Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    when (row) { 2 -> "Wed"; 5 -> "Sat"; else -> "" },
-                    fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    modifier = Modifier.width(20.dp)
-                )
-                for (w in 0 until 53) {
-                    val day = first.plusDays((w * 7 + row).toLong())
-                    if (day.year != year && (w > 0 && day.year > year)) {
-                        Box(Modifier.size(10.dp))
-                    } else if (day.year != year) {
-                        Box(Modifier.size(10.dp))
-                    } else {
-                        val dateStr = day.toString()
-                        val g = grid[dateStr]
-                        val isVac = dateStr in vacationDays
-                        val intensity = when {
-                            isVac -> 0.0
-                            g == null || (g.completed == 0 && g.scheduled == 0 && g.tasks == 0) -> 0.0
-                            g.scheduled == 0 && g.tasks > 0 -> 0.25
-                            g.scheduled == 0 -> 1.0
-                            else -> (g.completed.toDouble() / g.scheduled.coerceAtLeast(1)).coerceIn(0.0, 1.0).let { if (it == 0.0 && g.completed > 0) 0.5 else it }
+    }
+
+    // ---- month labels: floor((firstOfMonth - week0)/7) like web ----
+    val monthLabels = remember(year, weeks.size) {
+        val jan1 = java.time.LocalDate.of(year, 1, 1)
+        val startDow = jan1.dayOfWeek.value - 1
+        val week0 = jan1.minusDays(startDow.toLong())
+        (0 until 12).mapNotNull { m ->
+            val firstOfMonth = java.time.LocalDate.of(year, m + 1, 1)
+            val wi = java.time.temporal.ChronoUnit.DAYS.between(week0, firstOfMonth).toInt() / 7
+            if (wi < 0 || wi >= weeks.size) return@mapNotNull null
+            val label = firstOfMonth.month.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.ENGLISH)
+            wi to label
+        }
+    }
+
+    val totalWidthDp = gutterDp + gapDp + weeks.size * (cellDp + gapDp)
+
+    // ---- auto-scroll to today centered ----
+    val todayStr = LocalDate.now().toString()
+    LaunchedEffect(year, grid) {
+        val wi = weeks.indexOfFirst { w -> w.any { it.date == todayStr } }
+        if (wi >= 0) {
+            val x = (gutterDp + gapDp + wi * (cellDp + gapDp)).toFloat()
+            val max = scroll.maxValue
+            if (max > 0) {
+                val target = (x - 170f).toInt().coerceIn(0, max)
+                scroll.scrollTo(target)
+            }
+        }
+    }
+
+    Column(Modifier.fillMaxWidth()) {
+        Column(
+            Modifier
+                .horizontalScroll(scroll)
+                .width(totalWidthDp.dp)
+        ) {
+            // month labels row (absolute offsets)
+            Box(Modifier.fillMaxWidth().height(18.dp)) {
+                monthLabels.forEach { (wi, label) ->
+                    Text(
+                        label, fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+                        modifier = Modifier.offset(x = (gutterDp + gapDp + wi * (cellDp + gapDp)).dp)
+                    )
+                }
+            }
+            Spacer(Modifier.height(3.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(gapDp.dp)) {
+                // day labels column: Mon..Sun, only Wed & Sat shown
+                Column(
+                    Modifier.width(gutterDp.dp),
+                    verticalArrangement = Arrangement.spacedBy(gapDp.dp)
+                ) {
+                    val labels = listOf("Mon", "", "Wed", "", "", "Sat", "")
+                    labels.forEach { lab ->
+                        Box(Modifier.height(cellDp.dp), contentAlignment = Alignment.CenterStart) {
+                            Text(lab, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f))
                         }
-                        val today = day == LocalDate.now()
-                        val base = if (isVac) Color(0xFFF59E0B).copy(alpha = 0.18f) else levelColor(intensity, dark)
-                        val cellModifier = Modifier.size(10.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(base)
-                            .then(if (today) Modifier.border(1.5.dp, BeBetterTokens.Accent, RoundedCornerShape(2.dp)) else Modifier)
-                            .clickable { onDayClick?.invoke(dateStr) }
-                        Box(cellModifier)
+                    }
+                }
+                // weeks
+                Row(horizontalArrangement = Arrangement.spacedBy(gapDp.dp)) {
+                    weeks.forEach { week ->
+                        Column(verticalArrangement = Arrangement.spacedBy(gapDp.dp)) {
+                            week.forEach { cell ->
+                                val ds = cell.date
+                                Box(
+                                    Modifier
+                                        .size(cellDp.dp)
+                                        .clip(RoundedCornerShape(2.dp))
+                                        .background(
+                                            when {
+                                                ds == null -> Color.Transparent
+                                                else -> webCellColor(cell.day, ds in vacationDays)
+                                            }
+                                        )
+                                        .then(
+                                            if (ds == todayStr)
+                                                Modifier.border(2.dp, Color(0x9934D399), RoundedCornerShape(2.dp))
+                                            else Modifier
+                                        )
+                                        .then(
+                                            if (ds != null && cell.day != null &&
+                                                (cell.day.scheduled > 0 || cell.day.completed > 0 || cell.day.tasks > 0) &&
+                                                onDayClick != null
+                                            ) Modifier.clickable { onDayClick(ds) } else Modifier
+                                        )
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Spacer(Modifier.weight(1f))
+        // legend (right aligned) — 6 swatches gray/800-40,800-80,e950,e700,e500,e400
+        Row(
+            Modifier.fillMaxWidth().padding(top = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text("Less", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
-            listOf(0.0, 0.2, 0.4, 0.7, 1.0).forEach {
-                Box(Modifier.size(10.dp).clip(RoundedCornerShape(2.dp)).background(levelColor(it, dark)))
+            listOf(
+                Color(0x661F2937), Color(0xCC1F2937), Color(0xFF022C22),
+                Color(0xFF047857), Color(0xFF10B981), Color(0xFF34D399)
+            ).forEach {
+                Box(Modifier.size(cellDp.dp).clip(RoundedCornerShape(2.dp)).background(it))
             }
             Text("More", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
         }
+    }
+}
+
+// exact getCellClass() from ContributionGrid.vue
+@Composable
+private fun webCellColor(day: GridDay?, isVacation: Boolean): Color {
+    if (isVacation) return Color(0x2EF59E0B)
+    if (day == null) return Color(0x661F2937) // gray-800/40 no activity
+    val habits = day.habits
+    val scheduled = day.scheduled
+    val tasks = day.tasks
+    if (scheduled == 0 && habits == 0 && tasks == 0 && day.completed == 0) return Color(0x661F2937)
+    if (tasks > 0 && scheduled == 0 && habits == 0) return Color(0x99022C22) // emerald-950/60
+    val ratio = if (scheduled > 0) habits.toFloat() / scheduled else if (habits > 0) 1f else null
+    if (ratio == null || ratio == 0f) return Color(0xCC1F2937) // gray-800/80
+    return when {
+        ratio <= 0.33f -> Color(0xFF022C22)
+        ratio <= 0.66f -> Color(0xFF047857)
+        ratio < 1f -> Color(0xFF10B981)
+        else -> Color(0xFF34D399)
     }
 }

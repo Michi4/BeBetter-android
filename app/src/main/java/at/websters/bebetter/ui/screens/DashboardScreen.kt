@@ -92,17 +92,18 @@ fun DashboardScreen(
     }
 
     val now = nowMinutes()
-    // expand scheduled like web (per-slot entries already come expanded from backend)
-    val overdue = scheduled.filter { h -> val t = h.scheduledTime; t != null && slotMinutes(t) < now - 30 && h.completedToday != true }
-    val nowList = scheduled.filter { h -> val t = h.scheduledTime; t != null && slotMinutes(t) in (now - 30)..(now + 30) && h.completedToday != true }
-    val upcoming = scheduled.filter { h -> val t = h.scheduledTime; t != null && slotMinutes(t) > now + 30 && h.completedToday != true }
+    fun hasBreak(h: Habit): Boolean = h.breaks?.any { it.endDate == null } == true
+    val overdue = scheduled.filter { h -> val t = h.scheduledTime; t != null && slotMinutes(t) < now - 30 && h.completedToday != true && !hasBreak(h) }
+    val nowList = scheduled.filter { h -> val t = h.scheduledTime; t != null && slotMinutes(t) in (now - 30)..(now + 30) && h.completedToday != true && !hasBreak(h) }
+    val upcoming = scheduled.filter { h -> val t = h.scheduledTime; t != null && slotMinutes(t) > now + 30 && h.completedToday != true && !hasBreak(h) }
     val unscheduled = scheduled.filter { it.scheduledTime == null }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { createMode = "task"; showCreate = true },
-                containerColor = BeBetterTokens.AccentBtn,
+                containerColor = BeBetterTokens.AccentBtnHover, // emerald-600 like web FAB
                 contentColor = androidx.compose.ui.graphics.Color.White,
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.size(56.dp)
@@ -115,12 +116,13 @@ fun DashboardScreen(
             }
             return@Scaffold
         }
+        // .page = max-w-3xl mx-auto px-4 pt-4 space-y-5 bottom calc(4rem+4.5rem+safe+1rem) -> 96+safe
         LazyColumn(
-            Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(bottom = 96.dp)
+            Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp).padding(top = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+            contentPadding = PaddingValues(bottom = 160.dp)
         ) {
-            // Demo banner (web-exact)
+            // Demo banner web-exact: card bg-emerald-500/10 border emerald-500/20 icon FlaskConical
             if (me?.isDemo == true) {
                 item {
                     Card(
@@ -130,9 +132,12 @@ fun DashboardScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text("You're in the demo account", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = BeBetterTokens.Accent)
-                                Text("Shared public account — data resets hourly. Sign up to save your own streaks.", fontSize = 12.sp, color = BeBetterTokens.Accent.copy(alpha = 0.8f))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                Text("🧪", fontSize = 16.sp)
+                                Column(Modifier.weight(1f)) {
+                                    Text("You're in the demo account", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = BeBetterTokens.Accent)
+                                    Text("Shared public account — data resets hourly. Sign up to save your own streaks.", fontSize = 12.sp, color = BeBetterTokens.Accent.copy(alpha = 0.8f))
+                                }
                             }
                             TextButton(onClick = { onOpen("profile") }) { Text("Sign Up", color = BeBetterTokens.Accent, fontSize = 12.sp) }
                         }
@@ -149,9 +154,12 @@ fun DashboardScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Column {
-                                Text("🏖️ You're on vacation", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = androidx.compose.ui.graphics.Color(0xFFFBBF24))
-                                Text("No habits scheduled. Enjoy your break!", fontSize = 12.sp, color = androidx.compose.ui.graphics.Color(0xFFFBBF24).copy(alpha = 0.7f))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("🏖️", fontSize = 16.sp)
+                                Column {
+                                    Text("You're on vacation", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = androidx.compose.ui.graphics.Color(0xFFFBBF24))
+                                    Text("No habits scheduled. Enjoy your break!", fontSize = 12.sp, color = androidx.compose.ui.graphics.Color(0xFFFBBF24).copy(alpha = 0.7f))
+                                }
                             }
                             TextButton(onClick = { scope.launch { runCatching { ApiClient.get().vacationEnd() }; load() } }) {
                                 Text("End early", fontSize = 12.sp, color = androidx.compose.ui.graphics.Color(0xFFFBBF24))

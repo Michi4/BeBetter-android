@@ -3,14 +3,15 @@ package at.websters.bebetter.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import at.websters.bebetter.data.*
 import at.websters.bebetter.ui.theme.BeBetterTokens
+import at.websters.bebetter.ui.theme.isBeBetterDark
 import at.websters.bebetter.ui.theme.levelColor
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -138,7 +140,7 @@ fun HabitRow(habit: Habit, onOpen: () -> Unit, onToggled: () -> Unit) {
                             busy = false
                         }
                     }, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Filled.Undo, "Undo", tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.size(14.dp))
+                        Icon(Icons.AutoMirrored.Filled.Undo, "Undo", tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.size(14.dp))
                     }
                 }
             }
@@ -221,13 +223,13 @@ fun SectionHeader(title: String, onSeeAll: (() -> Unit)? = null) {
 }
 
 @Composable
-fun ContributionGridView(grid: Map<String, GridDay>, year: Int, dark: Boolean = true) {
+fun ContributionGridView(grid: Map<String, GridDay>, year: Int, dark: Boolean = isBeBetterDark()) {
+    val scroll = androidx.compose.foundation.rememberScrollState()
     val start = LocalDate.of(year, 1, 1)
     var first = start
     while (first.dayOfWeek.value % 7 != 0) first = first.minusDays(1)
-    // Month labels like web
     val months = listOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.horizontalScroll(scroll)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Spacer(Modifier.width(20.dp))
             months.forEach { Text(it, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.weight(1f, fill = false)) }

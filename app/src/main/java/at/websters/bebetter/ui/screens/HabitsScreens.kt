@@ -49,16 +49,18 @@ fun HabitsScreen(onDetail: (String) -> Unit) {
     LaunchedEffect(Unit) { load() }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showCreate = true },
-                containerColor = BeBetterTokens.AccentBtn,
+                containerColor = BeBetterTokens.AccentBtnHover,
                 contentColor = androidx.compose.ui.graphics.Color.White,
-                shape = RoundedCornerShape(16.dp)
-            ) { Icon(Icons.Filled.Add, "Add") }
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.size(56.dp)
+            ) { Icon(Icons.Filled.Add, "Add", modifier = Modifier.size(24.dp)) }
         }
     ) { pad ->
-        LazyColumn(Modifier.fillMaxSize().padding(pad).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp).padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 96.dp)) {
             item {
                 SectionTitle("Habits")
                 err?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp) }
@@ -66,6 +68,9 @@ fun HabitsScreen(onDetail: (String) -> Unit) {
             }
             items(habits, key = { it.id }) { h ->
                 HabitRow(habit = h, onOpen = { onDetail(h.id) }, onToggled = { load() })
+            }
+            if (!loading && habits.isEmpty()) {
+                item { BeBetterCard(modifier = Modifier.fillMaxWidth()) { Text("No habits yet — create your first! 🌱", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
             }
         }
     }

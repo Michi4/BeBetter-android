@@ -25,10 +25,14 @@ object BeBetterTokens {
     val InputBorderDark = Color(0xFF2C3440)
     val BtnSecBgDark = Color(0xFF1D2129)
     val BtnSecInkDark = Color(0xFFD7DBE3)
+    val NavBgDark = Color(0xDB0B0D12)          // rgba(11,13,18,0.86)
+    val NavBorderDark = Color(0x0FFFFFFF)      // rgba(255,255,255,0.06)
+    val AppBarBgDark = Color(0xFF030712)
     val Accent = Color(0xFF34D399)        // --bb-accent / emerald-400
     val AccentStrong = Color(0xFF10B981)  // emerald-500
     val AccentBtn = Color(0xFF047857)     // emerald-700 (.btn bg)
-    val AccentBtnHover = Color(0xFF059669)// emerald-600
+    val AccentBtnHover = Color(0xFF059669)// emerald-600 (FAB)
+    val Emerald300 = Color(0xFF6EE7B7)     // brand gradient end
 
     // Light (html.light)
     val BgLight = Color(0xFFFAF9F6)
@@ -38,7 +42,14 @@ object BeBetterTokens {
     val FaintLight = Color(0xFF79746D)
     val LineLight = Color(0xFFE3DED6)
     val CardBorderLight = Color(0xFFE7E4DE)
+    val InputBgLight = Color(0xFFFFFFFF)
     val InputBorderLight = Color(0xFFD3D0C9)
+    val InputPlaceholderLight = Color(0xFFA8A49C)
+    val NavBgLight = Color(0xE6FFFFFF)        // rgba(255,255,255,0.9)
+    val NavBorderLight = Color(0x12000000)    // rgba(0,0,0,0.07)
+    val BtnSecBgLight = Color(0xFFEEF0F4)
+    val BtnSecInkLight = Color(0xFF33383F)
+    val BtnSecHoverLight = Color(0xFFE2E5EA)
     val AccentLight = Color(0xFF047857)
     val AccentStrongLight = Color(0xFF065F46)
 }

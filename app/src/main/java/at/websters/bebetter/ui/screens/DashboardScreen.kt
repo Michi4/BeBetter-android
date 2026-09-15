@@ -37,6 +37,7 @@ fun DashboardScreen(
     var scheduled by remember { mutableStateOf<List<Habit>>(emptyList()) }
     var tasks by remember { mutableStateOf<List<at.websters.bebetter.data.Task>>(emptyList()) }
     var grid by remember { mutableStateOf<Map<String, at.websters.bebetter.data.GridDay>>(emptyMap()) }
+    var vacationDays by remember { mutableStateOf<Set<String>>(emptySet()) }
     var years by remember { mutableStateOf<List<Int>>(listOf(LocalDate.now().year)) }
     var year by remember { mutableStateOf(LocalDate.now().year) }
     var me by remember { mutableStateOf<at.websters.bebetter.data.User?>(null) }
@@ -67,14 +68,16 @@ fun DashboardScreen(
                 scheduled = api.scheduledHabits(LocalDate.now().toString()).habits
                 tasks = api.tasks(LocalDate.now().toString()).tasks.filter { !it.isCompletedToday && it.isDueToday }
                 years = api.gridYears().years.ifEmpty { listOf(LocalDate.now().year) }.sorted()
-                grid = api.grid("$year-01-01", "$year-12-31").grid
+                val gRes = api.grid("$year-01-01", "$year-12-31")
+                grid = gRes.grid
+                vacationDays = gRes.vacationDays.toSet()
             } catch (_: Exception) {}
             loading = false
         }
     }
     LaunchedEffect(year) {
         scope.launch {
-            try { grid = ApiClient.get().grid("$year-01-01", "$year-12-31").grid } catch (_: Exception) {}
+            try { val g = ApiClient.get().grid("$year-01-01", "$year-12-31"); grid = g.grid; vacationDays = g.vacationDays.toSet() } catch (_: Exception) {}
         }
     }
     LaunchedEffect(Unit) { load() }
@@ -199,7 +202,7 @@ fun DashboardScreen(
                             Text("$year", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
-                    ContributionGridView(grid = grid, year = year)
+                    ContributionGridView(grid = grid, year = year, vacationDays = vacationDays)
                 }
             }
             // Quick create (tidied: always visible on Android, single row)

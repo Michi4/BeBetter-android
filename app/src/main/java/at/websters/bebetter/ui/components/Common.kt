@@ -223,16 +223,34 @@ fun SectionHeader(title: String, onSeeAll: (() -> Unit)? = null) {
 }
 
 @Composable
-fun ContributionGridView(grid: Map<String, GridDay>, year: Int, dark: Boolean = isBeBetterDark()) {
+fun ContributionGridView(
+    grid: Map<String, GridDay>,
+    year: Int,
+    dark: Boolean = isBeBetterDark(),
+    vacationDays: Set<String> = emptySet(),
+    onDayClick: ((String) -> Unit)? = null
+) {
     val scroll = androidx.compose.foundation.rememberScrollState()
     val start = LocalDate.of(year, 1, 1)
     var first = start
+    // web: week starts Sunday (0), align Jan 1 to Sunday
     while (first.dayOfWeek.value % 7 != 0) first = first.minusDays(1)
     val months = listOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
+    // auto-scroll to September/October like screenshot (center ~ today)
+    LaunchedEffect(year, grid) {
+        // scroll to ~ 2/3 year to mimic web where today is visible
+        kotlinx.coroutines.delay(100)
+        scroll.animateScrollTo((scroll.maxValue * 0.55).toInt().coerceAtLeast(0))
+    }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.horizontalScroll(scroll)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Spacer(Modifier.width(20.dp))
-            months.forEach { Text(it, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.weight(1f, fill = false)) }
+        Row(horizontalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.padding(start = 24.dp)) {
+            // month headers anchored to week start — web does exact math, we approximate with spacer
+            months.forEachIndexed { i, label ->
+                val monthStart = LocalDate.of(year, i+1, 1)
+                val weekIndex = java.time.temporal.ChronoUnit.WEEKS.between(first, monthStart.minusDays((monthStart.dayOfWeek.value % 7).toLong())).toInt()
+                val offset = (weekIndex * 15) // 12 + 3
+                Box(Modifier.width(30.dp)) { Text(label, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)) }
+            }
         }
         for (row in 0 until 7) {
             Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -248,20 +266,26 @@ fun ContributionGridView(grid: Map<String, GridDay>, year: Int, dark: Boolean = 
                     } else if (day.year != year) {
                         Box(Modifier.size(12.dp))
                     } else {
-                        val g = grid[day.toString()]
+                        val dateStr = day.toString()
+                        val g = grid[dateStr]
+                        val isVac = dateStr in vacationDays
                         val intensity = when {
+                            isVac -> 0.0
                             g == null || (g.completed == 0 && g.scheduled == 0 && g.tasks == 0) -> 0.0
                             g.scheduled == 0 && g.tasks > 0 -> 0.25
                             g.scheduled == 0 -> 1.0
                             else -> (g.completed.toDouble() / g.scheduled.coerceAtLeast(1)).coerceIn(0.0, 1.0).let { if (it == 0.0 && g.completed > 0) 0.5 else it }
                         }
                         val today = day == LocalDate.now()
-                        Box(
-                            Modifier.size(12.dp)
-                                .clip(RoundedCornerShape(2.dp))
-                                .background(levelColor(intensity, dark))
-                                .then(if (today) Modifier.border(1.dp, BeBetterTokens.Accent, RoundedCornerShape(2.dp)) else Modifier)
-                        )
+                        val base = if (isVac) Color(0xFFF59E0B).copy(alpha = 0.18f) else levelColor(intensity, dark)
+                        // premium: glow for max, subtle scale animation
+                        val cellModifier = Modifier.size(12.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(base)
+                            .then(if (today) Modifier.border(1.5.dp, BeBetterTokens.Accent, RoundedCornerShape(2.dp)) else Modifier)
+                            .then(if (intensity >= 0.9f) Modifier else Modifier)
+                            .clickable { onDayClick?.invoke(dateStr) }
+                        Box(cellModifier)
                     }
                 }
             }

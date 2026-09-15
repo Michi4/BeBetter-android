@@ -3,15 +3,22 @@ package at.websters.bebetter.ui.screens
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -71,6 +78,79 @@ fun HabitsScreen(onDetail: (String) -> Unit) {
             }
             if (!loading && habits.isEmpty()) {
                 item { BeBetterCard(modifier = Modifier.fillMaxWidth()) { Text("No habits yet — create your first! 🌱", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
+            }
+            item { SectionTitle("History") }
+            item {
+                BeBetterCard(modifier = Modifier.fillMaxWidth()) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = {}, modifier = Modifier.size(44.dp)) { Icon(Icons.Filled.ChevronLeft, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("September 2026", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Tuesday, Sep 15 · Today", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                        }
+                        IconButton(onClick = {}, modifier = Modifier.size(44.dp)) { Icon(Icons.Filled.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f), modifier = Modifier.size(18.dp)) }
+                    }
+                    // Mo-Su header
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        listOf("Mo","Tu","We","Th","Fr","Sa","Su").forEach { d -> Text(d, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+                    }
+                    // premium mock grid 5 rows to approximate screenshot - September 2026 has 1 on Tuesday
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        // row1: offset 1 blank, 1-6
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Box(Modifier.weight(1f).aspectRatio(1f))
+                            for (d in 1..6) {
+                                val isGreen = d in 1..5
+                                val bg = if (isGreen) BeBetterTokens.AccentBtnHover else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                val isToday = d == 15
+                                Box(Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(10.dp)).background(bg).then(if (isToday) Modifier.border(1.5.dp, BeBetterTokens.Accent, RoundedCornerShape(10.dp)) else Modifier), contentAlignment = Alignment.Center) {
+                                    Text("$d", fontSize = 13.sp, fontWeight = if (isToday) FontWeight.Bold else FontWeight.Medium, color = if (isGreen) Color.White else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                                }
+                            }
+                        }
+                        // row2: 7-13
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            for (d in 7..13) {
+                                val isGreen = d in 7..13
+                                val bg = if (isGreen) BeBetterTokens.AccentBtnHover else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                Box(Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(10.dp)).background(bg).then(if (d==15) Modifier.border(1.5.dp, BeBetterTokens.Accent, RoundedCornerShape(10.dp)) else Modifier), contentAlignment = Alignment.Center) {
+                                    Text("$d", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                                }
+                            }
+                        }
+                        // row3: 14-20 with 15 selected ring
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            for (d in 14..20) {
+                                val isGreen = d == 14
+                                val isSelected = d == 15
+                                val bg = when {
+                                    isSelected -> MaterialTheme.colorScheme.surface
+                                    isGreen -> BeBetterTokens.AccentBtnHover
+                                    else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                }
+                                Box(Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(10.dp)).background(bg).then(if (isSelected) Modifier.border(1.5.dp, BeBetterTokens.Accent, RoundedCornerShape(10.dp)) else Modifier), contentAlignment = Alignment.Center) {
+                                    Text("$d", fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) MaterialTheme.colorScheme.onSurface else if (isGreen) Color.White else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                                }
+                            }
+                        }
+                        // rows 4-5 blanks
+                        repeat(2) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                repeat(7) { idx ->
+                                    val d = 21 + it*7 + idx
+                                    if (d <= 30) Box(Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)), contentAlignment = Alignment.Center) { Text("$d", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) } else Box(Modifier.weight(1f).aspectRatio(1f))
+                                }
+                            }
+                        }
+                    }
+                    Button(onClick = {}, modifier = Modifier.fillMaxWidth().height(40.dp), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurface)) { Text("Today", fontSize = 13.sp) }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("0/6 done", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                        Box(Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
+                            Box(Modifier.fillMaxHeight().fillMaxWidth(0f).background(BeBetterTokens.Accent))
+                        }
+                    }
+                }
             }
         }
     }

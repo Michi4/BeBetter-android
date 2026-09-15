@@ -324,7 +324,7 @@ fun WearAssistant(session: WearSession) {
         busy = true; err = null
         keyboard?.hide()
         log = log + ("user" to msg) + ("ai" to "")
-        val history = log.dropLast(2).map { (r, t) -> (if (r == "user") "user" else "assistant") to t }
+        val history = log.dropLast(1).map { (r, t) -> (if (r == "user") "user" else "assistant") to t }
         scope.launch {
             var partial = ""
             WearClient.chatStream(

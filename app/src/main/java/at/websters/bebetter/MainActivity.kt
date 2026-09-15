@@ -17,6 +17,8 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.material3.LocalMinimumInteractiveComponentEnforcement
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -217,6 +219,7 @@ fun BeBetterNav() {
                             }
                         },
                         actions = {
+                            CompositionLocalProvider(LocalMinimumInteractiveComponentEnforcement provides false) {
                             // theme toggle: Sun/Moon via WbSunny/DarkMode
                             IconButton(onClick = {
                                 scope.launch {
@@ -224,7 +227,7 @@ fun BeBetterNav() {
                                     val isDarkNow = cur != "light"
                                     session.saveTheme(if (isDarkNow) "light" else "dark")
                                 }
-                            }, modifier = Modifier.size(44.dp)) {
+                            }, modifier = Modifier.size(40.dp)) {
                                 Icon(
                                     if (isDark) Icons.Filled.LightMode else Icons.Filled.DarkMode,
                                     contentDescription = "Toggle theme",
@@ -233,45 +236,34 @@ fun BeBetterNav() {
                                 )
                             }
                             if (!isDemo) {
-                                IconButton(onClick = { nav.navigate(Routes.ASSISTANT) }, modifier = Modifier.size(44.dp)) {
+                                IconButton(onClick = { nav.navigate(Routes.ASSISTANT) }, modifier = Modifier.size(40.dp)) {
                                     Icon(Icons.Filled.AutoAwesome, "Assistant", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                                 }
                             } else {
-                                IconButton(onClick = { nav.navigate(Routes.PROFILE) }, modifier = Modifier.size(44.dp)) {
+                                IconButton(onClick = { nav.navigate(Routes.ASSISTANT) }, modifier = Modifier.size(40.dp)) {
                                     Icon(Icons.Filled.AutoAwesome, "Assistant locked", tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
                                 }
                             }
-                            // Android app link placeholder (web Smartphone) -> profile? keep for parity hidden on android? use settings
-                            IconButton(onClick = { nav.navigate(Routes.NOTIFICATIONS) }, modifier = Modifier.size(44.dp)) {
+                            IconButton(onClick = { nav.navigate(Routes.NOTIFICATIONS) }, modifier = Modifier.size(40.dp)) {
                                 Icon(Icons.Filled.Notifications, "Notifications", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                             }
-                            // avatar
                             Box(
                                 modifier = Modifier
+                                    .padding(start = 2.dp, end = 8.dp)
+                                    .size(34.dp)
                                     .clip(CircleShape)
                                     .clickable { nav.navigate(Routes.PROFILE) }
-                                    .padding(end = 4.dp)
-                                    .size(32.dp)
-                                    .clip(CircleShape)
                                     .background(BeBetterTokens.Accent.copy(alpha = 0.12f))
-                                    .border(1.dp, BeBetterTokens.Accent.copy(alpha = 0.25f), CircleShape)
-                                    .let { m -> m },
+                                    .border(1.dp, BeBetterTokens.Accent.copy(alpha = 0.25f), CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     (username?.firstOrNull()?.uppercase() ?: "?"),
-                                    fontSize = 12.sp,
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = BeBetterTokens.Accent
                                 )
                             }
-                            IconButton(onClick = {
-                                scope.launch {
-                                    session.clearToken(); ApiClient.invalidate(); token = null
-                                    nav.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } }
-                                }
-                            }, modifier = Modifier.size(44.dp)) {
-                                Icon(Icons.AutoMirrored.Filled.Logout, "Log out", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                             }
                         }
                     )

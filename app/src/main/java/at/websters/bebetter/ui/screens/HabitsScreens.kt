@@ -81,11 +81,11 @@ fun HabitsScreen(onDetail: (String) -> Unit) {
                 containerColor = BeBetterTokens.AccentBtnHover,
                 contentColor = androidx.compose.ui.graphics.Color.White,
                 shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.size(56.dp)
+                modifier = Modifier.padding(bottom = 48.dp).size(56.dp)
             ) { Icon(Icons.Filled.Add, "Add", modifier = Modifier.size(24.dp)) }
         }
     ) { pad ->
-        LazyColumn(Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp).padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 96.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp).padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 240.dp)) {
             item {
                 SectionTitle("Habits")
                 err?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp) }

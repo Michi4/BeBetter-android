@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0.0 — 2026-09-15 (rebuild 5, phone versionCode 6 / wear versionCode 3)
+
+### Fixed
+- **Phone top bar** — logout removed from the action row (it lives in Profile), icons sized to 40dp with 48dp touch targets, no visual overlaps.
+- **Phone FAB** — floats fully above the nav bar (`bottom 48dp`), dashboard scroll clearance raised to 220dp.
+- **Wear app fully rebuilt** (was a broken 391-line skeleton): wear-native login (no more overlapping M3 `TextField`s), Today screen with **tap-to-toggle habit completion** (real `POST /logs` / `DELETE /logs/habit/{id}`), **live streaming assistant** over SSE (verified end-to-end on Pixel Watch), stats screen, working Protolayout tiles (Today + Assistant with `LaunchAction` deep links via `?screen=` extras), streak complication kept.
+- **Wear assistant off-by-one** — history payload now includes the current user message (empty `messages` caused server 500 → "Something went wrong").
+
 ## v1.0.0 — 2026-09-14 (rebuild 4, versionCode 5)
 
 Pixel-perfect 1:1 parity with the web PWA (`app.bebetter.websters.at`).

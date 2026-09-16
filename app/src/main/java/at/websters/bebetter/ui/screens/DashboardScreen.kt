@@ -3,6 +3,8 @@ package at.websters.bebetter.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -45,10 +47,11 @@ fun DashboardScreen(
     var me by remember { mutableStateOf<at.websters.bebetter.data.User?>(null) }
     var vacation by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
-    var quickTask by remember { mutableStateOf("") }
+    var dayDetail by remember { mutableStateOf<at.websters.bebetter.data.GridDayDetailResponse?>(null) }
     var showCreate by remember { mutableStateOf(false) }
     var showAllTasks by remember { mutableStateOf(false) }
     var createMode by remember { mutableStateOf("task") }
+    var convertPrefill by remember { mutableStateOf<Pair<String, String>?>(null) }
     var clockTick by remember { mutableStateOf(0) }
 
     // reactive clock like web (30s) for Overdue/Now/Upcoming buckets
@@ -123,7 +126,7 @@ fun DashboardScreen(
         floatingActionButtonPosition = FabPosition.Center, // web: centered above bottom nav
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { createMode = "task"; showCreate = true },
+                onClick = { convertPrefill = null; createMode = "task"; showCreate = true },
                 containerColor = BeBetterTokens.AccentBtnHover, // emerald-600 like web FAB
                 contentColor = androidx.compose.ui.graphics.Color.White,
                 shape = RoundedCornerShape(16.dp),
@@ -141,7 +144,7 @@ fun DashboardScreen(
         LazyColumn(
             Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp).padding(top = 16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
-            contentPadding = PaddingValues(bottom = 220.dp)
+            contentPadding = PaddingValues(bottom = 320.dp)
         ) {
             // Demo banner web-exact: card bg-emerald-500/10 border emerald-500/20 icon FlaskConical
             if (me?.isDemo == true) {
@@ -220,52 +223,29 @@ fun DashboardScreen(
                             Text("$year", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
-                    ContributionGridView(grid = grid, year = year, vacationDays = vacationDays)
+                    ContributionGridView(grid = grid, year = year, vacationDays = vacationDays, onDayClick = { d ->
+                        scope.launch {
+                            val r = runCatching { ApiClient.get().gridDay(d) }.getOrNull()
+                            val has = r != null && (r.habits.isNotEmpty() || r.tasks.isNotEmpty() || r.scheduledHabits.isNotEmpty() || r.isOnVacation)
+                            if (has) dayDetail = r else if ((grid[d]?.scheduled ?: 0) + (grid[d]?.tasks ?: 0) + (grid[d]?.completed ?: 0) > 0) dayDetail = at.websters.bebetter.data.GridDayDetailResponse(date = d)
+                        }
+                    })
                 }
             }
-            // Quick create (tidied: always visible on Android, single row)
-            item {
-                BeBetterCard(modifier = Modifier.fillMaxWidth()) {
-                    SectionTitle("Quick Create")
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            quickTask, { quickTask = it }, placeholder = { Text("Add a quick task…", fontSize = 14.sp) },
-                            singleLine = true, modifier = Modifier.weight(1f).heightIn(min = 44.dp), shape = RoundedCornerShape(8.dp)
-                        )
-                        Button(
-                            onClick = {
-                                scope.launch {
-                                    try {
-                                        ApiClient.get().createTask(mapOf("title" to quickTask.trim()))
-                                        quickTask = ""
-                                        load()
-                                    } catch (_: Exception) {}
-                                }
-                            },
-                            enabled = quickTask.isNotBlank(),
-                            modifier = Modifier.height(44.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = BeBetterTokens.AccentBtn, contentColor = androidx.compose.ui.graphics.Color.White)
-                        ) { Text("Add") }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        OutlinedButton(onClick = { createMode = "task"; showCreate = true }, modifier = Modifier.weight(1f).height(44.dp), shape = RoundedCornerShape(8.dp)) {
-                            Text("+ New Task", fontSize = 14.sp)
-                        }
-                        Button(onClick = { createMode = "habit"; showCreate = true }, modifier = Modifier.weight(1f).height(44.dp), shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = BeBetterTokens.AccentBtn, contentColor = androidx.compose.ui.graphics.Color.White)) {
-                            Text("◎ New Habit", fontSize = 14.sp)
-                        }
-                    }
-                }
-            }
+            // Web: Quick Create is desktop-only ("hidden md:block"); mobile uses the FAB.
             // Today's Tasks
             item { SectionTitle("Today's Tasks") }
             if (tasks.isEmpty()) {
                 item { Text("No tasks for today", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) }
             } else {
                 val visible = if (showAllTasks || tasks.size <= 5) tasks else tasks.take(5)
-                items(visible) { t -> TaskRow(task = t, onChanged = { load() }, onMove = { dir -> moveTask(t, dir) }) }
+                items(visible) { t -> TaskRow(task = t, onChanged = { load() }, onMove = { dir -> moveTask(t, dir) }, onConvert = { tc ->
+                    // web convertTask: task already deleted by TaskRow; open create sheet prefilled as habit
+                    convertPrefill = (tc.title to (tc.description ?: ""))
+                    createMode = "habit"
+                    showCreate = true
+                    load()
+                }) }
                 if (tasks.size > 5) {
                     item {
                         TextButton(onClick = { showAllTasks = !showAllTasks }) {
@@ -307,7 +287,42 @@ fun DashboardScreen(
         }
     }
     if (showCreate) {
-        CreateSheet(initialMode = createMode, onDismiss = { showCreate = false }, onCreated = { showCreate = false; load() })
+        CreateSheet(initialMode = createMode, initialTitle = convertPrefill?.first ?: "", initialDescription = convertPrefill?.second ?: "", onDismiss = { showCreate = false; convertPrefill = null }, onCreated = { showCreate = false; convertPrefill = null; load() })
+    }
+    dayDetail?.let { dd ->
+        val d = runCatching { LocalDate.parse(dd.date) }.getOrNull()
+        AlertDialog(
+            onDismissRequest = { dayDetail = null },
+            shape = RoundedCornerShape(20.dp),
+            title = { Text(d?.let { "${it.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.ENGLISH)}, ${it.month.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.ENGLISH)} ${it.dayOfMonth}" } ?: dd.date, fontSize = 16.sp) },
+            confirmButton = { TextButton(onClick = { dayDetail = null }) { Text("Close", color = BeBetterTokens.Accent) } },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (dd.isOnVacation) Text("🏖️ On vacation — habits were paused.", fontSize = 13.sp, color = androidx.compose.ui.graphics.Color(0xFFFBBF24))
+                    dd.scheduledHabits.forEach { s ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(if (s.completed) "✅" else "⬜", fontSize = 14.sp)
+                            Text("${s.emoji?.plus(" ") ?: ""}${s.title ?: "Habit"}", fontSize = 14.sp, color = if (s.completed) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    dd.habits.forEach { h ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("✅", fontSize = 14.sp)
+                            Text("${h.habit?.emoji?.plus(" ") ?: ""}${h.habit?.title ?: "Habit"}", fontSize = 14.sp)
+                        }
+                    }
+                    dd.tasks.forEach { t ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("✔", fontSize = 14.sp, color = BeBetterTokens.Accent)
+                            Text(t.task?.title ?: "Task", fontSize = 14.sp)
+                        }
+                    }
+                    if (dd.scheduledHabits.isEmpty() && dd.habits.isEmpty() && dd.tasks.isEmpty() && !dd.isOnVacation) {
+                        Text("No activity on this day", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        )
     }
 }
 

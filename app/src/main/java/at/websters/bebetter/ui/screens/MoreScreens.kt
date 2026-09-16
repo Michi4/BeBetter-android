@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package at.websters.bebetter.ui.screens
 
 import android.net.Uri
@@ -119,7 +121,7 @@ fun AssistantScreen() {
                     Column(Modifier.fillMaxWidth().padding(top = 48.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Icon(Icons.Filled.AutoAwesome, null, tint = BeBetterTokens.Accent.copy(alpha = 0.4f), modifier = Modifier.size(40.dp))
                         Text("Ask me to create habits, plan your day,\nor analyze your streaks.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             listOf("What should I focus on today?", "Suggest a new habit", "How is my streak?").forEach { s ->
                                 OutlinedButton(onClick = { send(s) }, shape = RoundedCornerShape(20.dp)) { Text(s, fontSize = 11.sp) }
                             }

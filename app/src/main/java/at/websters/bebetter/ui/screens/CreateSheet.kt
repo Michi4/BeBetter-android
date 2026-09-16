@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -29,14 +30,14 @@ private val DAYS = listOf("Su","Mo","Tu","We","Th","Fr","Sa")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreateSheet(initialMode: String = "task", onDismiss: () -> Unit, onCreated: () -> Unit) {
+fun CreateSheet(initialMode: String = "task", initialTitle: String = "", initialDescription: String = "", onDismiss: () -> Unit, onCreated: () -> Unit) {
     val scope = rememberCoroutineScope()
     var mode by remember { mutableStateOf(initialMode) }
     var busy by remember { mutableStateOf(false) }
     var err by remember { mutableStateOf<String?>(null) }
 
-    var title by remember { mutableStateOf("") }
-    var desc by remember { mutableStateOf("") }
+    var title by remember { mutableStateOf(initialTitle) }
+    var desc by remember { mutableStateOf(initialDescription) }
     var emoji by remember { mutableStateOf("🌱") }
     var showEmoji by remember { mutableStateOf(false) }
     var showAdvanced by remember { mutableStateOf(false) }
@@ -84,8 +85,15 @@ fun CreateSheet(initialMode: String = "task", onDismiss: () -> Unit, onCreated: 
             // Header
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Create New", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
-                    Icon(Icons.Filled.Close, "Close", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .clickable { onDismiss() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Filled.Close, "Close", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             // Mode Toggle - like screenshot: Task/Habit pills in light gray container
@@ -248,7 +256,7 @@ fun CreateSheet(initialMode: String = "task", onDismiss: () -> Unit, onCreated: 
                 // Add another time dashed
                 Box(Modifier.fillMaxWidth().height(46.dp).clip(RoundedCornerShape(12.dp)).border(1.dp, BeBetterTokens.Accent.copy(alpha = 0.25f), RoundedCornerShape(12.dp)).background(BeBetterTokens.Accent.copy(alpha = 0.04f)).clickable {
                     val t = currentTime.trim()
-                    if (t.matches(Regex("""([01]\d|2[0-3]):[0-5]\d"""))) { habitTimes = habitTimes + t; currentTime = ""; anyTime = false }
+                    if (t.matches(Regex("""([01]\d|2[0-3]):[0-5]\d""")) && !habitTimes.contains(t)) { habitTimes = habitTimes + t; currentTime = ""; anyTime = false }
                 }, contentAlignment = Alignment.Center) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Filled.Add, null, modifier = Modifier.size(16.dp), tint = BeBetterTokens.Accent); Text("Add another time", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = BeBetterTokens.Accent)
@@ -258,15 +266,17 @@ fun CreateSheet(initialMode: String = "task", onDismiss: () -> Unit, onCreated: 
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         habitTimes.forEachIndexed { idx, t ->
                             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)).padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Text(t, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface); TextButton(onClick = { habitTimes = habitTimes.filterIndexed { i, _ -> i != idx } }) { Text("✕", color = MaterialTheme.colorScheme.error) }
+                                Text(t, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface); TextButton(onClick = {
+                                    val kept = habitTimes.filterIndexed { i, _ -> i != idx }
+                                    habitTimes = kept
+                                    if (kept.isEmpty() && currentTime.isBlank()) anyTime = true
+                                }) { Text("✕", color = MaterialTheme.colorScheme.error) }
                             }
                         }
                     }
                 }
-                // Time quick input if not anytime (small)
-                if (!anyTime) {
-                    OutlinedTextField(currentTime, { currentTime = it }, placeholder = { Text("HH:MM e.g. 07:00", fontSize = 13.sp) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
-                }
+                // Time quick input (always visible so "Add another time" is usable)
+                OutlinedTextField(currentTime, { currentTime = it; anyTime = it.isBlank() && habitTimes.isEmpty() }, placeholder = { Text("HH:MM e.g. 07:00", fontSize = 13.sp) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
                 Row(Modifier.fillMaxWidth().clickable { showAdvanced = !showAdvanced }.padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(if (showAdvanced) "⌃" else "⌄", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(if (showAdvanced) "Hide advanced" else "Show advanced", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)

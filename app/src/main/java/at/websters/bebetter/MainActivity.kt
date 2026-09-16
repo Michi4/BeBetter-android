@@ -178,7 +178,9 @@ fun BeBetterNav() {
                                 selected = active,
                                 onClick = {
                                     if (locked) nav.navigate(Routes.PROFILE)
-                                    else nav.navigate(r) { launchSingleTop = true; popUpTo(Routes.DASHBOARD) { saveState = true }; restoreState = true }
+                                    else if (r == Routes.DASHBOARD && route != Routes.DASHBOARD) {
+                                        if (!nav.popBackStack(Routes.DASHBOARD, false)) nav.navigate(Routes.DASHBOARD) { popUpTo(Routes.DASHBOARD) { inclusive = true } }
+                                    } else if (r != Routes.DASHBOARD) nav.navigate(r) { launchSingleTop = true; popUpTo(Routes.DASHBOARD) { saveState = true }; restoreState = true }
                                 },
                                 alwaysShowLabel = true,
                                 icon = { Icon(icon, label, tint = if (active) BeBetterTokens.Accent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f), modifier = Modifier.size(22.dp)) },

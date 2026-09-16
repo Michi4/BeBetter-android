@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -157,10 +158,23 @@ private fun Habit.hasBreak(): Boolean = try {
 // ---------- TaskCard: exact web replica ----------
 
 @Composable
-fun TaskRow(task: Task, onChanged: () -> Unit, onMove: ((Int) -> Unit)? = null) {
+fun TaskRow(task: Task, onChanged: () -> Unit, onMove: ((Int) -> Unit)? = null, onConvert: ((Task) -> Unit)? = null) {
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
+    var showEdit by remember { mutableStateOf(false) }
+    var showDelete by remember { mutableStateOf(false) }
+    val eTitle = remember(task.id) { mutableStateOf(task.title) }
+    val eDesc = remember(task.id) { mutableStateOf(task.description ?: "") }
+    val eDue = remember(task.id) { mutableStateOf(task.dueDate?.take(10).orEmpty()) }
+    val eTime = remember(task.id) { mutableStateOf(task.scheduledTime ?: "") }
+    var err by remember(task.id) { mutableStateOf<String?>(null) }
+    val apiErr: (Throwable) -> String = { e ->
+        val raw = (e as? retrofit2.HttpException)?.response()?.errorBody()?.string() ?: e.message ?: "Something went wrong"
+        Regex("\"error\"\\s*:\\s*\"([^\"]+)\"").find(raw)?.groupValues?.get(1) ?: raw.take(140)
+    }
     val done = task.isCompletedToday
+    Column(Modifier.fillMaxWidth()) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         // mobile move buttons (web TaskCard: ChevronUp/ChevronDown)
         if (onMove != null) {
@@ -191,8 +205,9 @@ fun TaskRow(task: Task, onChanged: () -> Unit, onMove: ((Int) -> Unit)? = null) 
                     scope.launch {
                         try {
                             if (!done) ApiClient.get().completeTask(task.id) else ApiClient.get().uncompleteTask(task.id, LocalDate.now().toString())
+                            err = null
                             onChanged()
-                        } catch (_: Exception) {}
+                        } catch (e: Exception) { err = apiErr(e) }
                         busy = false
                     }
                 },
@@ -218,6 +233,79 @@ fun TaskRow(task: Task, onChanged: () -> Unit, onMove: ((Int) -> Unit)? = null) 
                 Text(task.description!!, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
+        // web TaskCard ⋮ menu: Edit / Convert to Habit / Delete
+        Box {
+            IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Filled.MoreVert, "Task options", tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(18.dp))
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(text = { Text("Edit", fontSize = 13.sp) }, onClick = { menuOpen = false; err = null; showEdit = true })
+                if (onConvert != null) DropdownMenuItem(text = { Text("Convert to Habit", fontSize = 13.sp) }, onClick = {
+                    menuOpen = false
+                    scope.launch {
+                        // web convertTask: delete first; on success open prefilled create sheet
+                        try { ApiClient.get().deleteTask(task.id); err = null; onConvert(task) } catch (e: Exception) { err = apiErr(e) }
+                    }
+                })
+                DropdownMenuItem(text = { Text("Delete", fontSize = 13.sp, color = MaterialTheme.colorScheme.error) }, onClick = { menuOpen = false; err = null; showDelete = true })
+            }
+        }
+    }
+    err?.let { Text(it, fontSize = 11.sp, color = MaterialTheme.colorScheme.error, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 52.dp, top = 2.dp)) }
+    }
+    if (showEdit) {
+        AlertDialog(
+            onDismissRequest = { showEdit = false },
+            title = { Text("Edit Task", fontSize = 16.sp) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(eTitle.value, { eTitle.value = it }, label = { Text("Title", fontSize = 12.sp) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp))
+                    OutlinedTextField(eDesc.value, { eDesc.value = it }, label = { Text("Description", fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(eDue.value, { eDue.value = it }, label = { Text("Due (YYYY-MM-DD)", fontSize = 11.sp) }, singleLine = true, modifier = Modifier.weight(1f), shape = RoundedCornerShape(10.dp))
+                        OutlinedTextField(eTime.value, { eTime.value = it }, label = { Text("Time", fontSize = 11.sp) }, singleLine = true, modifier = Modifier.weight(1f), shape = RoundedCornerShape(10.dp))
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = eTitle.value.isNotBlank(), onClick = {
+                    showEdit = false
+                    scope.launch {
+                        val iso = eDue.value.takeIf { it.isNotBlank() }?.let { d -> if (eTime.value.isNotBlank()) "${d}T${eTime.value}:00" else "${d}T00:00:00" }
+                        try {
+                            ApiClient.get().updateTask(
+                                task.id,
+                                mapOf(
+                                    "title" to eTitle.value.trim(),
+                                    "description" to eDesc.value.ifBlank { null },
+                                    "dueDate" to iso,
+                                    "scheduledTime" to eTime.value.ifBlank { null }
+                                )
+                            )
+                            err = null
+                            onChanged()
+                        } catch (e: Exception) { err = apiErr(e) }
+                    }
+                }) { Text("Save", color = BeBetterTokens.Accent) }
+            },
+            dismissButton = { TextButton(onClick = { showEdit = false }) { Text("Cancel") } }
+        )
+    }
+    if (showDelete) {
+        AlertDialog(
+            onDismissRequest = { showDelete = false },
+            title = { Text("Delete task?", fontSize = 16.sp) },
+            text = { Text("This permanently removes \"${task.title}\". This cannot be undone.", fontSize = 13.sp) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDelete = false
+                    scope.launch {
+                        try { ApiClient.get().deleteTask(task.id); err = null; onChanged() } catch (e: Exception) { err = apiErr(e) }
+                    }
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { showDelete = false }) { Text("Cancel") } }
+        )
     }
 }
 

@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.0.0 — 2026-09-16 (rebuild 6, phone versionCode 7 / wear versionCode 3)
+
+Dedicated-emulator audit of every screen (uianalyzer geometry pass: overlaps/clipping/touch targets) plus functional end-to-end tests on the demo account.
+
+### Fixed
+- **Bottom-nav Home** — from Habits/Profile/Assistant, tapping Home sometimes landed on Profile or did nothing (`restoreState` resurrected stale back-stack state). Home now pops back to a fresh Dashboard.
+- **Habits FAB** — `FabPosition.Center` was only set on the dashboard; the Habits screen FAB sat on the right overlapping the history calendar. Now centered on both.
+- **Assistant quick prompts** — the three suggestion chips overflowed the 360dp row, the third chip was clipped under the Send button. Now a wrapping `FlowRow`.
+- **Task ⋮ menu (web parity)** — the web TaskCard has Edit / Convert to Habit / Delete; Android had none of them:
+  - Edit opens an inline dialog (title/description/due date/time → `PUT /tasks/{id}`), verified live on demo (`PUT` returns 200).
+  - Delete with confirmation dialog (verified the full flow; the demo server answers 403 "Not available in the demo account…" by design).
+  - Convert to Habit deletes the task then opens the create sheet prefilled in habit mode.
+  - All task mutations now surface the server error message inline under the row instead of failing silently (previously `runCatching` swallowed the 403).
+- **"Add another time" dead in create sheet** — the HH:MM input only rendered in non-anytime mode while adding required a valid typed time, so the button was a no-op in the default state. The input is now always visible (auto-syncs the Anytime chip), duplicates are rejected, removing all times with ✕ restores Anytime. Add + ✕-delete verified.
+- **Dashboard grid day click (web parity)** — tapping a contribution-grid cell opens the day-detail dialog (`GET /grid/day`: weekday title, scheduled habits ✅/⬜, logs, tasks, vacation note) like the web DayDetail modal.
+- **Scroll clearance** — Dashboard/Habits list padding raised to 320dp so max-scroll audits clear the centered FAB.
+
+### Verified (no changes needed)
+- Full habit-mode create sheet (schedule presets, weekday pills, reminders, preset toggle, buddies, challenges), edit-habit sheet, habit detail, preset detail, login/register/forgot-password forms (registered `qaaudit10` end-to-end via UI, empty-state screens clean, account deleted via API afterwards), Notifications/Profile/Settings including Danger Zone. Task-row edit and habit-row navigation both work (earlier tap failures were stale dump coordinates, not app bugs).
+
 ## v1.0.0 — 2026-09-15 (rebuild 5, phone versionCode 6 / wear versionCode 3)
 
 ### Fixed

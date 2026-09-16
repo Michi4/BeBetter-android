@@ -75,6 +75,7 @@ fun HabitsScreen(onDetail: (String) -> Unit) {
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        floatingActionButtonPosition = FabPosition.Center,
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showCreate = true },
@@ -85,7 +86,7 @@ fun HabitsScreen(onDetail: (String) -> Unit) {
             ) { Icon(Icons.Filled.Add, "Add", modifier = Modifier.size(24.dp)) }
         }
     ) { pad ->
-        LazyColumn(Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp).padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 240.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp).padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 320.dp)) {
             item {
                 SectionTitle("Habits")
                 err?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp) }

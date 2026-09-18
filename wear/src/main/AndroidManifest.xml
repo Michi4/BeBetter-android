@@ -9,7 +9,6 @@
 
     <application
         android:allowBackup="false"
-        tools:replace="android:allowBackup"
         android:icon="@mipmap/ic_launcher"
         android:label="BeBetter"
         android:supportsRtl="true"

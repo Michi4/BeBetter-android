@@ -46,7 +46,6 @@ fun CreateSheet(initialMode: String = "task", initialTitle: String = "", initial
     var schedTime by remember { mutableStateOf("") }
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
-    var taskIntervalN by remember { mutableStateOf("2") }
     val timePickerState = androidx.compose.material3.rememberTimePickerState(initialHour = 9, initialMinute = 0, is24Hour = true)
     var repeat by remember { mutableStateOf("once") }
     var repeatDays by remember { mutableStateOf(setOf(1, 2, 3, 4, 5)) }
@@ -58,7 +57,7 @@ fun CreateSheet(initialMode: String = "task", initialTitle: String = "", initial
     var buddyResults by remember { mutableStateOf(listOf<at.websters.bebetter.data.Friend>()) }
     var buddyIds by remember { mutableStateOf(setOf<String>()) }
     var challengerQuery by remember { mutableStateOf("") }
-    var challengerResults by remember { mutableStateOf(setOf<at.websters.bebetter.data.Friend>()) }
+    var challengerResults by remember { mutableStateOf(listOf<at.websters.bebetter.data.Friend>()) }
     var challengerIds by remember { mutableStateOf(setOf<String>()) }
 
     fun searchFriends(q: String, assign: (List<at.websters.bebetter.data.Friend>) -> Unit) {
@@ -445,7 +444,7 @@ fun CreateSheet(initialMode: String = "task", initialTitle: String = "", initial
                                 TextButton(onClick = { challengerIds = emptySet() }) { Text("Clear", fontSize = 12.sp) }
                             }
                         }
-                        OutlinedTextField(challengerQuery, { challengerQuery = it; searchFriends(it) { challengerResults = it.toSet().toList() } }, placeholder = { Text("Search friends to challenge...", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                        OutlinedTextField(challengerQuery, { challengerQuery = it; searchFriends(it) { challengerResults = it } }, placeholder = { Text("Search friends to challenge...", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
                         challengerResults.take(5).forEach { u ->
                             Row(Modifier.fillMaxWidth().clickable {
                                 challengerIds = if (challengerIds.contains(u.id)) challengerIds - u.id else challengerIds + u.id

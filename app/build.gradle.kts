@@ -8,6 +8,10 @@ android {
     namespace = "at.websters.bebetter"
     compileSdk = 36
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         applicationId = "at.websters.bebetter"
         minSdk = 28

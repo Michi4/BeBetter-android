@@ -354,7 +354,13 @@ fun HabitDetailScreen(id: String, onBack: () -> Unit) {
         }
         item {
             val needsPhotoHere = h.verificationType == "photo" || h.verificationType == "be_better_cam"
-            if (!needsPhotoHere) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (needsPhotoHere) {
+                // Photo-proof habits: camera/gallery only (one-tap would bypass verification).
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { launchCamera() }, enabled = !busy, modifier = Modifier.weight(1f)) { Text("Camera") }
+                    OutlinedButton(onClick = { pickPhoto.launch("image/*") }, enabled = !busy, modifier = Modifier.weight(1f)) { Text("Gallery") }
+                }
+            } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = {
                         busy = true
@@ -371,12 +377,6 @@ fun HabitDetailScreen(id: String, onBack: () -> Unit) {
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = BeBetterTokens.AccentBtn, contentColor = androidx.compose.ui.graphics.Color.White)
                 ) { Text("Log completion") }
-                val needsPhoto = h.verificationType == "photo" || h.verificationType == "be_better_cam"
-                if (needsPhoto) {
-                    OutlinedButton(onClick = { launchCamera() }, enabled = !busy) { Text("Camera") }
-                    OutlinedButton(onClick = { pickPhoto.launch("image/*") }, enabled = !busy) { Text("Gallery") }
-                }
-                }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { scope.launch { runCatching { ApiClient.get().breakStart(h.id) }; load() } }, modifier = Modifier.weight(1f)) { Text("Pause") }

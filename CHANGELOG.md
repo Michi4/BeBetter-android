@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased (phone versionCode 8 / wear versionCode 4)
+
+### Security
+- Auth token moved from plaintext DataStore to AndroidKeyStore-backed EncryptedSharedPreferences (+ one-shot migration, in-memory cache, no more `runBlocking` on the network path); same for the watch.
+- HTTP logging now debug-only; server logout is called on sign-out; `allowBackup=false` (tokens no longer leave the device via backup).
+- Removed default habit emoji (matches web: no emoji unless picked).
+
+### Fixed / parity
+- Task time picker (native dialog) + repeat (Once/Daily/Weekly/Every N) + reminders wired into task create; buddy/challenge friend search + attach wired into habit create.
+- Photo-proof habits can no longer be one-tapped complete (row routes to detail); detail screen gained a Camera capture button next to Gallery; plain Log button hidden when proof is required.
+- Friend-invite deep links open an in-app Accept/Decline screen; challenge invites open an invite screen; password-reset links open a reset screen; all intents (incl. while logged out) route correctly.
+- Reset-password screen added (was API-only); Terms/Privacy/Imprint open the website; Login gained a server field; stay-logged-in checkbox is honored (memory-only session when off).
+- Admin announcements actually POST (was a fake stats refresh); challenge detail resolves winners + gates Accept/Decline to pending; preset create + report added; friend profiles added.
+- Notifications inbox dims pushed rows; hourly worker skips already-pushed items.
+- Invite-link creation no longer fires the endpoint twice.
+
 ## v1.0.0 — 2026-09-16 (rebuild 6, phone versionCode 7 / wear versionCode 3)
 
 Dedicated-emulator audit of every screen (uianalyzer geometry pass: overlaps/clipping/touch targets) plus functional end-to-end tests on the demo account.

@@ -395,7 +395,19 @@ fun BeBetterNav(
             composable(Routes.TASKS) { TasksScreen() }
             composable(Routes.GRID) { GridScreen() }
             composable(Routes.FRIENDS) {
-                FriendsScreen(onChallenge = { nav.navigate(Routes.challenge(it)) }, onNewChallenge = { nav.navigate(Routes.NEW_CHALLENGE) })
+                FriendsScreen(onChallenge = { nav.navigate(Routes.challenge(it)) }, onNewChallenge = { nav.navigate(Routes.NEW_CHALLENGE) }, onFriendProfile = { nav.navigate(Routes.friend(it)) })
+            }
+            composable(
+                Routes.FRIEND_PROFILE,
+                arguments = listOf(navArgument("id") { type = NavType.StringType })
+            ) {
+                FriendProfileScreen(
+                    userId = it.arguments?.getString("id").orEmpty(),
+                    onBack = { nav.popBackStack() }
+                )
+            }
+            composable(Routes.PRESET_NEW) {
+                PresetCreateScreen(onDone = { nav.popBackStack() })
             }
             composable(Routes.CHALLENGES) {
                 ChallengesScreen(onDetail = { nav.navigate(Routes.challenge(it)) }, onNew = { nav.navigate(Routes.NEW_CHALLENGE) })
@@ -404,7 +416,7 @@ fun BeBetterNav(
             composable(Routes.CHALLENGE_DETAIL, listOf(navArgument("id") { type = NavType.StringType })) {
                 ChallengeDetailScreen(id = it.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() })
             }
-            composable(Routes.PRESETS) { PresetsScreen(onDetail = { nav.navigate(Routes.preset(it)) }) }
+            composable(Routes.PRESETS) { PresetsScreen(onDetail = { nav.navigate(Routes.preset(it)) }, onCreate = { nav.navigate(Routes.PRESET_NEW) }) }
             composable(Routes.PRESET_DETAIL, listOf(navArgument("id") { type = NavType.StringType })) {
                 PresetDetailScreen(id = it.arguments?.getString("id") ?: "", onBack = { nav.popBackStack() })
             }

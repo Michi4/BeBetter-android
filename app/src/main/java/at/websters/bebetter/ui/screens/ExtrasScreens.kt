@@ -1,5 +1,7 @@
 package at.websters.bebetter.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -7,6 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -17,13 +20,16 @@ import at.websters.bebetter.ui.theme.SectionTitle
 import kotlinx.coroutines.launch
 
 @Composable
-fun PresetsScreen(onDetail: (String) -> Unit) {
+fun PresetsScreen(onDetail: (String) -> Unit, onCreate: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     var presets by remember { mutableStateOf<List<at.websters.bebetter.data.Preset>>(emptyList()) }
     var q by remember { mutableStateOf("") }
     LaunchedEffect(Unit) { scope.launch { presets = runCatching { ApiClient.get().presets().presets }.getOrDefault(emptyList()) } }
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        SectionTitle("Presets")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            SectionTitle("Presets")
+            Button(onClick = onCreate, colors = ButtonDefaults.buttonColors(containerColor = BeBetterTokens.AccentBtn, contentColor = androidx.compose.ui.graphics.Color.White)) { Text("+ New") }
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             OutlinedTextField(q, { q = it }, placeholder = { Text("Search presets…", fontSize = 14.sp) }, modifier = Modifier.weight(1f).heightIn(min = 44.dp), singleLine = true, shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
                 colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(focusedBorderColor = BeBetterTokens.Accent, unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant))
@@ -63,7 +69,53 @@ fun PresetDetailScreen(id: String, onBack: () -> Unit) {
             OutlinedButton(onClick = { scope.launch { msg = runCatching { ApiClient.get().likePreset(id); "Liked!" }.getOrElse { it.message ?: "Failed" } } }, shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)) { Text("♥ Like") }
             OutlinedButton(onClick = { scope.launch { msg = runCatching { ApiClient.get().forkPreset(id); "Forked!" }.getOrElse { it.message ?: "Failed" } } }, shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)) { Text("Fork") }
         }
+        var showReport by remember { mutableStateOf(false) }
+        var reportReason by remember { mutableStateOf("") }
+        OutlinedButton(onClick = { showReport = !showReport }, shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)) { Text("Report") }
+        if (showReport) {
+            OutlinedTextField(reportReason, { reportReason = it }, placeholder = { Text("Why is this inappropriate?") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp))
+            Button(onClick = { scope.launch {
+                msg = runCatching {
+                    ApiClient.get().reportPreset(id, mapOf("reason" to reportReason.trim()))
+                    showReport = false
+                    "Thanks — reported for review."
+                }.getOrElse { it.message ?: "Failed" }
+            } }, enabled = reportReason.isNotBlank()) { Text("Send report") }
+        }
         msg?.let { Text(it, fontSize = 14.sp, color = BeBetterTokens.Accent) }
+    }
+}
+
+@Composable
+fun PresetCreateScreen(onDone: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var title by remember { mutableStateOf("") }
+    var desc by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf("Other") }
+    var busy by remember { mutableStateOf(false) }
+    var err by remember { mutableStateOf<String?>(null) }
+    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("New preset", style = MaterialTheme.typography.headlineSmall)
+        OutlinedTextField(title, { title = it }, label = { Text("Title") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp))
+        OutlinedTextField(desc, { desc = it }, label = { Text("Description (optional)") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp))
+        Text("Category", style = MaterialTheme.typography.titleSmall)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf("Fitness", "Health", "Learning", "Productivity", "Mindfulness", "Social", "Other").forEach { c ->
+                val sel = category == c
+                Box(Modifier.clip(RoundedCornerShape(10.dp)).background(if (sel) BeBetterTokens.AccentBtn else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)).clickable { category = c }.padding(horizontal = 10.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+                    Text(c, fontSize = 12.sp, color = if (sel) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        err?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp) }
+        Button(onClick = {
+            busy = true; err = null
+            scope.launch {
+                val r = runCatching { ApiClient.get().createPreset(mapOf("title" to title.trim(), "description" to desc.trim().ifBlank { null }, "category" to category)) }
+                busy = false
+                if (r.isSuccess) onDone() else err = "Failed to create preset"
+            }
+        }, enabled = !busy && title.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text(if (busy) "Saving…" else "Create preset") }
     }
 }
 

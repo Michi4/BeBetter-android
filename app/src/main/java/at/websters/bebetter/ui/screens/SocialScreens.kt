@@ -1,5 +1,6 @@
 package at.websters.bebetter.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -7,11 +8,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import at.websters.bebetter.ui.components.BeBetterCard
 import at.websters.bebetter.data.ApiClient
 import kotlinx.coroutines.launch
 
 @Composable
-fun FriendsScreen(onChallenge: (String) -> Unit, onNewChallenge: () -> Unit) {
+fun FriendsScreen(onChallenge: (String) -> Unit, onNewChallenge: () -> Unit, onFriendProfile: (String) -> Unit = {}) {
     val scope = rememberCoroutineScope()
     var friends by remember { mutableStateOf<List<at.websters.bebetter.data.Friend>>(emptyList()) }
     var requests by remember { mutableStateOf<List<at.websters.bebetter.data.FriendRequestItem>>(emptyList()) }
@@ -72,7 +75,7 @@ fun FriendsScreen(onChallenge: (String) -> Unit, onNewChallenge: () -> Unit) {
             Text("Your friends (${friends.size})", style = MaterialTheme.typography.titleSmall)
         }
         items(friends) { f ->
-            Card(Modifier.fillMaxWidth()) {
+            Card(Modifier.fillMaxWidth().clickable { onFriendProfile(f.id) }) {
                 Row(Modifier.padding(12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column { Text("@${f.username}", style = MaterialTheme.typography.titleSmall); f.bio?.let { Text(it, style = MaterialTheme.typography.bodySmall) } }
                     TextButton(onClick = { scope.launch { runCatching { ApiClient.get().removeFriend(f.id) }; load() } }) { Text("Remove") }
@@ -151,9 +154,81 @@ fun ChallengeDetailScreen(id: String, onBack: () -> Unit) {
         Text("${ch.title.ifBlank { ch.habit?.title ?: "Battle" }}", style = MaterialTheme.typography.headlineSmall)
         Text("${ch.creator?.username} vs ${ch.opponent?.username} • ${ch.status}")
         ch.stake?.let { Text("Stake: $it") }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { scope.launch { runCatching { ApiClient.get().acceptChallenge(id) } } }) { Text("Accept") }
-            OutlinedButton(onClick = { scope.launch { runCatching { ApiClient.get().declineChallenge(id) }; onBack() } }) { Text("Decline") }
+        var actionMsg by remember { mutableStateOf<String?>(null) }
+        if (ch.status == "pending") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { scope.launch {
+                    val r = runCatching { ApiClient.get().acceptChallenge(id) }
+                    actionMsg = if (r.isSuccess) "Accepted — good luck!" else "Could not accept (maybe your own challenge)."
+                    if (r.isSuccess) { c = runCatching { ApiClient.get().challengeDetail(id).challenge }.getOrNull() }
+                } }) { Text("Accept") }
+                OutlinedButton(onClick = { scope.launch { runCatching { ApiClient.get().declineChallenge(id) }; onBack() } }) { Text("Decline") }
+            }
+        }
+        if (ch.status == "active") {
+            Text("Declare winner", style = MaterialTheme.typography.titleSmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { scope.launch {
+                    val r = runCatching { ApiClient.get().resolveChallenge(ch.id, mapOf("winnerId" to ch.creatorId)) }
+                    actionMsg = if (r.isSuccess) "Winner declared!" else "Could not resolve."
+                    if (r.isSuccess) { c = runCatching { ApiClient.get().challengeDetail(id).challenge }.getOrNull() }
+                } }) { Text(ch.creator?.username?.takeIf { it.isNotBlank() }?.let { "$it won" } ?: "Creator won") }
+                OutlinedButton(onClick = { scope.launch {
+                    val r = runCatching { ApiClient.get().resolveChallenge(ch.id, mapOf("winnerId" to ch.opponentId)) }
+                    actionMsg = if (r.isSuccess) "Winner declared!" else "Could not resolve."
+                    if (r.isSuccess) { c = runCatching { ApiClient.get().challengeDetail(id).challenge }.getOrNull() }
+                } }) { Text(ch.opponent?.username?.takeIf { it.isNotBlank() }?.let { "$it won" } ?: "Opponent won") }
+            }
+        }
+        if (ch.status != "pending" && ch.status != "active") {
+            Text("Status: ${ch.status}" + (ch.winnerId?.let { " • winner decided" } ?: ""), style = MaterialTheme.typography.bodyMedium)
+        }
+        actionMsg?.let { Text(it, color = BeBetterTokens.Accent, fontSize = 13.sp) }
+    }
+}
+
+@Composable
+fun FriendProfileScreen(userId: String, onBack: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var profile by remember { mutableStateOf<at.websters.bebetter.data.FriendProfileResponse?>(null) }
+    var err by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    fun load() {
+        scope.launch {
+            profile = runCatching { ApiClient.get().friendProfile(userId) }.getOrElse {
+                err = "Could not load profile"; null
+            }
+        }
+    }
+    LaunchedEffect(userId) { load() }
+    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        TextButton(onClick = onBack) { Text("← Back", color = BeBetterTokens.Accent) }
+        err?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp) }
+        val p = profile ?: run { LinearProgressIndicator(Modifier.fillMaxWidth()); return@Column }
+        val u = p.user
+        if (u == null) {
+            Text("User not found.", fontSize = 14.sp)
+            return@Column
+        }
+        Text("@" + u.username, style = MaterialTheme.typography.headlineSmall)
+        u.bio?.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        if (!p.isFriend) {
+            Button(onClick = {
+                busy = true
+                scope.launch {
+                    val r = runCatching { ApiClient.get().friendRequest(mapOf("userId" to u.id)) }
+                    busy = false
+                    if (r.isSuccess) load()
+                }
+            }, enabled = !busy) { Text("Add friend") }
+        } else {
+            Text("You are friends", fontSize = 12.sp, color = BeBetterTokens.Accent)
+        }
+        Text("Habits (${p.habits?.size ?: 0})", style = MaterialTheme.typography.titleSmall)
+        (p.habits ?: emptyList()).forEach { h ->
+            BeBetterCard(modifier = Modifier.fillMaxWidth()) {
+                Text(h.title, fontSize = 14.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+            }
         }
     }
 }

@@ -81,9 +81,9 @@ class BeBetterTileService : TileService() {
         CoroutineScope(Dispatchers.IO).future {
             val ctx = applicationContext
             val session = at.websters.bebetter.wear.WearSession(ctx)
-            at.websters.bebetter.wear.WearClient.init(
-                kotlinx.coroutines.runBlocking { session.base() }
-            ) { runCatching { kotlinx.coroutines.runBlocking { session.token() } }.getOrNull() }
+            runCatching { session.ensureMigrated() }
+            runCatching { session.token() } // prime in-memory cache
+            at.websters.bebetter.wear.WearClient.init(session.base()) { session.cachedToken }
             val (due, total, streak) = try {
                 val h = at.websters.bebetter.wear.WearClient.get().scheduled(java.time.LocalDate.now().toString()).habits
                 val s = at.websters.bebetter.wear.WearClient.get().stats()
@@ -96,7 +96,7 @@ class BeBetterTileService : TileService() {
                 content = listOf(
                     tileText(ctx, "BeBetter", 16f, BgAccent),
                     tileText(ctx, if (due < 0) "Tap to sign in" else "$due of $total due", 20f),
-                    tileText(ctx, if (due < 0) "" else "🔥 $streak day streak", 14f, BgMuted)
+                    tileText(ctx, if (due < 0) "" else "$streak day streak", 14f, BgMuted)
                 )
             )
 
@@ -129,7 +129,7 @@ class AssistantTileService : TileService() {
                 ctx,
                 assistant = true,
                 content = listOf(
-                    tileText(ctx, "✨", 30f),
+                    tileText(ctx, "B", 30f),
                     tileText(ctx, "Ask BeBetter", 18f, BgAccent),
                     tileText(ctx, "Tap to chat", 13f, BgMuted)
                 )

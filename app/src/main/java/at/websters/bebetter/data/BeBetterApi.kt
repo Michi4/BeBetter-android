@@ -125,4 +125,6 @@ interface BeBetterApi {
     @POST("admin/users/{id}/ban") suspend fun adminBan(@Path("id") id: String, @Body body: Map<String, @JvmSuppressWildcards Any?> = emptyMap()): Map<String, String>
     @POST("admin/users/{id}/unban") suspend fun adminUnban(@Path("id") id: String): Map<String, String>
     @GET("admin/reports") suspend fun adminReports(): Map<String, JsonElement>
+    @POST("admin/announcements") suspend fun sendAnnouncement(@Body body: Map<String, @JvmSuppressWildcards Any?>): Map<String, JsonElement>
+    @POST("friends/link/decline") suspend fun declineFriendLink(@Body body: Map<String, String>): Map<String, String>
 }

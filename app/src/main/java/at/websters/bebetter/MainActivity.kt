@@ -62,13 +62,28 @@ object Routes {
     const val PROFILE = "profile"
     const val ADMIN = "admin"
     const val SETTINGS = "settings"
+    const val RESET = "reset-password?token={token}"
+    const val FRIEND_ACCEPT = "friend/accept/{token}"
+    const val CHALLENGE_INVITE = "challenge/invite/{token}"
+    fun reset(token: String) = "reset-password?token=$token"
+    fun friendAccept(token: String) = "friend/accept/$token"
+    fun challengeInvite(token: String) = "challenge/invite/$token"
     fun habit(id: String) = "habit/$id"
     fun challenge(id: String) = "challenge/$id"
     fun preset(id: String) = "preset/$id"
 }
 
 class MainActivity : ComponentActivity() {
+    private val deepLinkUri = androidx.compose.runtime.mutableStateOf<android.net.Uri?>(null)
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        deepLinkUri.value = intent.data
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        deepLinkUri.value = intent?.data
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -81,7 +96,7 @@ class MainActivity : ComponentActivity() {
                 else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
             BeBetterTheme {
-                BeBetterNav()
+                BeBetterNav(deepLinkUri) { deepLinkUri.value = null }
             }
         }
     }
@@ -89,7 +104,10 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BeBetterNav() {
+fun BeBetterNav(
+    deepLinkUri: androidx.compose.runtime.State<android.net.Uri?>,
+    onDeepLinkConsumed: () -> Unit
+) {
     val ctx = LocalContext.current
     val app = ctx.applicationContext as BeBetterApp
     val session = remember { app.session }
@@ -102,6 +120,7 @@ fun BeBetterNav() {
     var username by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
+        runCatching { session.ensureMigrated() }
         val t = session.getToken()
         val base = session.getBaseUrl()
         ApiClient.setBaseUrl(base)
@@ -119,6 +138,39 @@ fun BeBetterNav() {
             }
         }
         loading = false
+    }
+
+    // Deep links (friend invite / challenge invite / password reset), incl.
+    // links opened while logged out: park them until the session resolves.
+    var pendingLink by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(deepLinkUri.value) {
+        val uri = deepLinkUri.value ?: return@LaunchedEffect
+        onDeepLinkConsumed()
+        val path = uri.path?.trim('/') ?: return@LaunchedEffect
+        val target = when {
+            path.startsWith("friend/accept/") ->
+                Routes.friendAccept(path.removePrefix("friend/accept/"))
+            path.startsWith("challenges/invite/") ->
+                Routes.challengeInvite(path.removePrefix("challenges/invite/"))
+            path == "reset-password" ->
+                Routes.reset(uri.getQueryParameter("token").orEmpty())
+            uri.scheme == "bebetter" && uri.host == "reset-password" ->
+                Routes.reset(uri.getQueryParameter("token").orEmpty())
+            else -> null
+        } ?: return@LaunchedEffect
+        if (token == null && !target.startsWith("reset-password")) {
+            pendingLink = target
+        } else {
+            nav.navigate(target)
+        }
+    }
+    LaunchedEffect(token) {
+        pendingLink?.let {
+            if (token != null) {
+                nav.navigate(it)
+                pendingLink = null
+            }
+        }
     }
 
     if (loading) {
@@ -300,6 +352,33 @@ fun BeBetterNav() {
                 }, onBack = { nav.popBackStack() })
             }
             composable(Routes.FORGOT) { ForgotScreen(onBack = { nav.popBackStack() }) }
+            composable(
+                Routes.RESET,
+                arguments = listOf(navArgument("token") { type = NavType.StringType; defaultValue = "" })
+            ) { backStack ->
+                ResetPasswordScreen(
+                    token = backStack.arguments?.getString("token").orEmpty(),
+                    onDone = { nav.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } } }
+                )
+            }
+            composable(
+                Routes.FRIEND_ACCEPT,
+                arguments = listOf(navArgument("token") { type = NavType.StringType; defaultValue = "" })
+            ) { backStack ->
+                FriendAcceptScreen(
+                    token = backStack.arguments?.getString("token").orEmpty(),
+                    onDone = { nav.navigate(Routes.FRIENDS) { popUpTo(Routes.FRIENDS) { inclusive = false } } }
+                )
+            }
+            composable(
+                Routes.CHALLENGE_INVITE,
+                arguments = listOf(navArgument("token") { type = NavType.StringType; defaultValue = "" })
+            ) { backStack ->
+                ChallengeInviteScreen(
+                    token = backStack.arguments?.getString("token").orEmpty(),
+                    onDone = { nav.navigate(Routes.CHALLENGES) }
+                )
+            }
             composable(Routes.DASHBOARD) {
                 DashboardScreen(
                     onHabit = { nav.navigate(Routes.habit(it)) },
@@ -336,7 +415,7 @@ fun BeBetterNav() {
             composable(Routes.ADMIN) { AdminScreen(onBack = { nav.popBackStack() }) }
             composable(Routes.SETTINGS) {
                 SettingsScreen(
-                    onLogout = { scope.launch { session.clearToken(); ApiClient.invalidate(); token = null; nav.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } } } },
+                    onLogout = { scope.launch { runCatching { ApiClient.get().logout() }; session.clearToken(); ApiClient.invalidate(); token = null; nav.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } } } },
                     onBack = { nav.popBackStack() }
                 )
             }

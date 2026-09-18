@@ -34,9 +34,9 @@ fun PresetsScreen(onDetail: (String) -> Unit) {
         androidx.compose.foundation.lazy.LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.weight(1f), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 96.dp)) {
             items(presets) { p ->
                 BeBetterCard(modifier = Modifier.fillMaxWidth(), onClick = { onDetail(p.id) }) {
-                    Text("${p.emoji ?: "✨"} ${p.title}", fontSize = 14.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+                    Text("${p.emoji.orEmpty()} ${p.title}".trim(), fontSize = 14.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
                     p.description?.let { Text(it.take(140), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                    Text("❤ ${p.likesCount} • 🍴 ${p.forksCount} • ${p.category}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                    Text("${p.likesCount} likes • ${p.forksCount} forks • ${p.category}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
                 }
             }
         }
@@ -53,9 +53,9 @@ fun PresetDetailScreen(id: String, onBack: () -> Unit) {
         TextButton(onClick = onBack, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) { Text("← Back", color = BeBetterTokens.Accent) }
         val preset = p ?: run { LinearProgressIndicator(Modifier.fillMaxWidth(), color = BeBetterTokens.Accent); return@Column }
         BeBetterCard(modifier = Modifier.fillMaxWidth()) {
-            Text("${preset.emoji ?: "✨"} ${preset.title}", fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+            Text("${preset.emoji.orEmpty()} ${preset.title}".trim(), fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
             preset.description?.let { Text(it, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            Text("${preset.category} • ❤ ${preset.likesCount} • 🍴 ${preset.forksCount}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+            Text("${preset.category} • ${preset.likesCount} likes • ${preset.forksCount} forks", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { scope.launch { msg = runCatching { ApiClient.get().usePreset(id); "Added to your habits!" }.getOrElse { it.message ?: "Failed" } } },
@@ -115,7 +115,7 @@ fun NotificationsScreen() {
             notifs.forEach { n ->
                 BeBetterCard(modifier = Modifier.fillMaxWidth()) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(n.message, fontSize = 14.sp, fontWeight = if (!n.read) androidx.compose.ui.text.font.FontWeight.Medium else androidx.compose.ui.text.font.FontWeight.Normal)
+                        Text(n.message, fontSize = 14.sp, fontWeight = if (!n.read && !n.pushed) androidx.compose.ui.text.font.FontWeight.Medium else androidx.compose.ui.text.font.FontWeight.Normal)
                         Text("${n.type} • ${n.createdAt.take(16).replace("T", " ")}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                     }
                 }

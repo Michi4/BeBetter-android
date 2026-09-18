@@ -96,7 +96,7 @@ fun HabitsScreen(onDetail: (String) -> Unit) {
                 HabitRow(habit = h, onOpen = { onDetail(h.id) }, onToggled = { load() })
             }
             if (!loading && habits.isEmpty()) {
-                item { BeBetterCard(modifier = Modifier.fillMaxWidth()) { Text("No habits yet — create your first! 🌱", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
+                item { BeBetterCard(modifier = Modifier.fillMaxWidth()) { Text("No habits yet — create your first!", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
             }
             item { SectionTitle("History") }
             item {
@@ -204,7 +204,7 @@ fun HabitFormDialog(existing: Habit? = null, onDismiss: () -> Unit, onSaved: () 
     // Kept for quick edit; full create uses CreateSheet. Tidied to web tokens.
     val scope = rememberCoroutineScope()
     var title by remember { mutableStateOf(existing?.title ?: "") }
-    var emoji by remember { mutableStateOf(existing?.emoji ?: "🌱") }
+    var emoji by remember { mutableStateOf(existing?.emoji ?: "") }
     var desc by remember { mutableStateOf(existing?.description ?: "") }
     var freq by remember { mutableStateOf(existing?.frequencyType ?: "daily") }
     var verification by remember { mutableStateOf(existing?.verificationType ?: "honor") }
@@ -261,6 +261,43 @@ fun HabitDetailScreen(id: String, onBack: () -> Unit) {
     var msg by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
 
+    suspend fun uploadProof(file: File) {
+        val part = MultipartBody.Part.createFormData(
+            "photo", file.name, file.asRequestBody("image/jpeg".toMediaTypeOrNull())
+        )
+        val up = ApiClient.get().upload(part)
+        val url = up.url.ifBlank { up.fileUrl }
+        ApiClient.get().completeHabit(mapOf("habitId" to habit!!.id, "photo" to url, "status" to "completed"))
+        msg = "Photo proof submitted!"
+        habit = ApiClient.get().habitDetail(id).habit
+    }
+
+    var cameraUri by remember { mutableStateOf<Uri?>(null) }
+    val takePhoto = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok: Boolean ->
+        val uri = cameraUri
+        if (!ok || uri == null || habit == null) return@rememberLauncherForActivityResult
+        busy = true
+        scope.launch {
+            try {
+                val file = File(ctx.cacheDir, "proof_${System.currentTimeMillis()}.jpg")
+                ctx.contentResolver.openInputStream(uri)?.use { ins -> file.outputStream().use { ins.copyTo(it) } }
+                uploadProof(file)
+            } catch (e: Exception) {
+                err = e.message
+            }
+            busy = false
+        }
+    }
+    fun launchCamera() {
+        try {
+            val file = File(ctx.cacheDir, "cam_${System.currentTimeMillis()}.jpg")
+            val uri = androidx.core.content.FileProvider.getUriForFile(ctx, ctx.packageName + ".fileprovider", file)
+            cameraUri = uri
+            takePhoto.launch(uri)
+        } catch (e: Exception) {
+            err = e.message
+        }
+    }
     val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri == null || habit == null) return@rememberLauncherForActivityResult
         busy = true
@@ -271,10 +308,8 @@ fun HabitDetailScreen(id: String, onBack: () -> Unit) {
                 val part = MultipartBody.Part.createFormData(
                     "photo", file.name, file.asRequestBody("image/jpeg".toMediaTypeOrNull())
                 )
-                val up = ApiClient.get().upload(part)
-                val url = up.url.ifBlank { up.fileUrl }
-                ApiClient.get().completeHabit(mapOf("habitId" to habit!!.id, "photo" to url, "status" to "completed"))
-                msg = "Photo proof submitted! 📸"
+                uploadProof(file)
+                msg = "Photo proof submitted!"
                 habit = ApiClient.get().habitDetail(id).habit
             } catch (e: Exception) {
                 err = e.message
@@ -303,11 +338,11 @@ fun HabitDetailScreen(id: String, onBack: () -> Unit) {
         }
         item {
             BeBetterCard(modifier = Modifier.fillMaxWidth()) {
-                Text("${h.emoji.ifBlank { "🌱" }} ${h.title}", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("${h.emoji} ${h.title}".trim(), fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 h.description?.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     WebChip(h.frequencyType)
-                    WebChip("🔥 ${h.bestStreak}")
+                    WebChip("${h.bestStreak}d")
                     WebChip(h.verificationType, kind = if (h.verificationType == "honor") "gray" else "amber")
                     if (h.active == false) WebChip("paused", "amber")
                 }
@@ -318,14 +353,15 @@ fun HabitDetailScreen(id: String, onBack: () -> Unit) {
             }
         }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val needsPhotoHere = h.verificationType == "photo" || h.verificationType == "be_better_cam"
+            if (!needsPhotoHere) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = {
                         busy = true
                         scope.launch {
                             try {
                                 ApiClient.get().completeHabit(mapOf("habitId" to h.id, "status" to "completed"))
-                                msg = "Habit completed! 🎉"
+                                msg = "Habit completed!"
                                 load()
                             } catch (e: Exception) { err = e.message }
                             busy = false
@@ -335,8 +371,11 @@ fun HabitDetailScreen(id: String, onBack: () -> Unit) {
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = BeBetterTokens.AccentBtn, contentColor = androidx.compose.ui.graphics.Color.White)
                 ) { Text("Log completion") }
-                if (h.verificationType == "photo" || h.verificationType == "be_better_cam") {
-                    OutlinedButton(onClick = { pickPhoto.launch("image/*") }, enabled = !busy) { Text("📸 Proof") }
+                val needsPhoto = h.verificationType == "photo" || h.verificationType == "be_better_cam"
+                if (needsPhoto) {
+                    OutlinedButton(onClick = { launchCamera() }, enabled = !busy) { Text("Camera") }
+                    OutlinedButton(onClick = { pickPhoto.launch("image/*") }, enabled = !busy) { Text("Gallery") }
+                }
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -346,7 +385,7 @@ fun HabitDetailScreen(id: String, onBack: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = {
                     scope.launch {
-                        try { ApiClient.get().finishHabit(h.id); msg = "Habit finished. 🎯"; load() }
+                        try { ApiClient.get().finishHabit(h.id); msg = "Habit finished."; load() }
                         catch (e: Exception) { err = e.message }
                     }
                 }, modifier = Modifier.weight(1f)) { Text("Finish") }

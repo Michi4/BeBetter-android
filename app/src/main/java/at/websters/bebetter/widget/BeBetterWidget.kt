@@ -42,7 +42,7 @@ class BeBetterWidget : GlanceAppWidget() {
         ) {
             Text("BeBetter", style = TextStyle(color = ColorProvider(Color(0xFF34D399))))
             Text("$due/$total due today", style = TextStyle(color = ColorProvider(Color.White)))
-            Text("🔥 ${streak}d streak", style = TextStyle(color = ColorProvider(Color(0xFFA3ABB8))))
+            Text("${streak}d streak", style = TextStyle(color = ColorProvider(Color(0xFFA3ABB8))))
         }
     }
 }

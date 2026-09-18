@@ -227,6 +227,7 @@ data class AppNotification(
     val type: String = "",
     val message: String = "",
     val read: Boolean = false,
+    val pushed: Boolean = false,
     val createdAt: String = "",
     val data: JsonElement? = null
 )

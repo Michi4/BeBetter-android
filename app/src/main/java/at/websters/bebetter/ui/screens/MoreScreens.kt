@@ -194,7 +194,7 @@ fun ProfileScreen(onAdmin: () -> Unit, onSettings: () -> Unit = {}) {
                 val url = up.url.ifBlank { up.fileUrl }
                 ApiClient.get().updateMe(mapOf("avatar" to url))
                 me = ApiClient.get().me().user
-                msg = "Avatar updated! 📸"
+                msg = "Avatar updated"
             } catch (e: Exception) { msg = e.message }
             busy = false
         }
@@ -246,13 +246,13 @@ fun ProfileScreen(onAdmin: () -> Unit, onSettings: () -> Unit = {}) {
         }
         BeBetterCard(modifier = Modifier.fillMaxWidth()) {
             SectionTitle("Vacation mode")
-            Text("Pauses all streaks. Enjoy your break! 🏖️", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Pauses all streaks. Enjoy your break!", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { scope.launch { runCatching { ApiClient.get().vacationStart(emptyMap()) }; vacation = true } }, enabled = !vacation,
                     colors = ButtonDefaults.buttonColors(containerColor = BeBetterTokens.AccentBtn, contentColor = androidx.compose.ui.graphics.Color.White)) { Text("Start") }
                 OutlinedButton(onClick = { scope.launch { runCatching { ApiClient.get().vacationEnd() }; vacation = false } }, enabled = vacation) { Text("End vacation") }
             }
-            if (vacation) Text("🏖️ You are on vacation — habits are paused.", fontSize = 13.sp, color = androidx.compose.ui.graphics.Color(0xFFFBBF24))
+            if (vacation) Text("You are on vacation — habits are paused.", fontSize = 13.sp, color = androidx.compose.ui.graphics.Color(0xFFFBBF24))
         }
         msg?.let { Text(it, fontSize = 13.sp, color = BeBetterTokens.Accent) }
     }
@@ -292,18 +292,18 @@ fun AdminScreen(onBack: () -> Unit) {
         BeBetterCard(modifier = Modifier.fillMaxWidth()) {
             SectionTitle("Announcements")
             OutlinedTextField(announce, { announce = it }, placeholder = { Text("Broadcast message…") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp))
+            var announceTitle by remember { mutableStateOf("") }
+            OutlinedTextField(announceTitle, { announceTitle = it }, placeholder = { Text("Title (optional)") }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(8.dp))
             Button(onClick = {
                 scope.launch {
                     msg = runCatching {
-                        // backend: POST /admin/announcements { message }
-                        ApiClient.get().let { api ->
-                            // use raw retrofit via notifications? fallback: adminStats endpoint check
-                            api.adminStats()
-                        }
-                        "Sent (if supported by backend)"
-                    }.getOrElse { it.message ?: "Failed" }
+                        ApiClient.get().sendAnnouncement(mapOf("title" to announceTitle.ifBlank { "Announcement" }, "message" to announce))
+                        "Sent"
+                    }.getOrElse {
+                        (it as? retrofit2.HttpException)?.response()?.errorBody()?.string()?.take(200) ?: (it.message ?: "Failed")
+                    }
                 }
-            }) { Text("Send") }
+            }, enabled = announce.isNotBlank()) { Text("Send") }
             msg?.let { Text(it, fontSize = 12.sp) }
         }
         BeBetterCard(modifier = Modifier.fillMaxWidth()) {
@@ -430,7 +430,7 @@ fun SettingsScreen(onLogout: () -> Unit, onBack: () -> Unit) {
         BeBetterCard(modifier = Modifier.fillMaxWidth()) {
             SectionTitle("Vacation")
             if (vacation) {
-                Text("🏖️ You are on vacation — habits are paused.", fontSize = 13.sp, color = androidx.compose.ui.graphics.Color(0xFFFBBF24))
+                Text("You are on vacation — habits are paused.", fontSize = 13.sp, color = androidx.compose.ui.graphics.Color(0xFFFBBF24))
             } else {
                 Text("Going on vacation? Pause all habits so they don't count as missed.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(vacReason, { vacReason = it }, placeholder = { Text("e.g. Holiday, sick leave...", fontSize = 13.sp) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(8.dp))
@@ -454,7 +454,7 @@ fun SettingsScreen(onLogout: () -> Unit, onBack: () -> Unit) {
             Button(
                 onClick = {
                     scope.launch {
-                        msg = runCatching { ApiClient.get().changePassword(mapOf("currentPassword" to pwCur, "newPassword" to pwNew)); pwCur = ""; pwNew = ""; "Password changed ✅" }.getOrElse { "Failed: ${it.message}" }
+                        msg = runCatching { ApiClient.get().changePassword(mapOf("currentPassword" to pwCur, "newPassword" to pwNew)); pwCur = ""; pwNew = ""; "Password changed" }.getOrElse { "Failed: ${it.message}" }
                     }
                 },
                 enabled = pwCur.isNotBlank() && pwNew.length >= 8,
@@ -467,7 +467,7 @@ fun SettingsScreen(onLogout: () -> Unit, onBack: () -> Unit) {
         BeBetterCard(modifier = Modifier.fillMaxWidth()) {
             SectionTitle("Server")
             OutlinedTextField(baseUrl, { baseUrl = it }, placeholder = { Text("Server URL", fontSize = 13.sp) }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(8.dp))
-            Button(onClick = { scope.launch { session.saveBaseUrl(baseUrl.trimEnd('/').ifBlank { at.websters.bebetter.data.SessionManager.DEFAULT_BASE_URL }); ApiClient.setBaseUrl(session.getBaseUrl()); ApiClient.invalidate(); msg = "Server saved ✅" } },
+            Button(onClick = { scope.launch { session.saveBaseUrl(baseUrl.trimEnd('/').ifBlank { at.websters.bebetter.data.SessionManager.DEFAULT_BASE_URL }); ApiClient.setBaseUrl(session.getBaseUrl()); ApiClient.invalidate(); msg = "Server saved" } },
                 colors = ButtonDefaults.buttonColors(containerColor = BeBetterTokens.AccentBtn, contentColor = androidx.compose.ui.graphics.Color.White), shape = RoundedCornerShape(8.dp)) { Text("Save server", fontSize = 13.sp) }
         }
 
@@ -505,7 +505,7 @@ fun SettingsScreen(onLogout: () -> Unit, onBack: () -> Unit) {
                         showDelete = false
                         scope.launch {
                             runCatching { ApiClient.get().deleteAccount(mapOf("confirm" to "DELETE_MY_ACCOUNT")) }
-                            session.clearToken(); ApiClient.invalidate(); onLogout()
+                            runCatching { ApiClient.get().logout() }; session.clearToken(); ApiClient.invalidate(); onLogout()
                         }
                     }
                 ) { Text("Delete", color = MaterialTheme.colorScheme.error) }

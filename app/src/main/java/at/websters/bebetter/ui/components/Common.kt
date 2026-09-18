@@ -101,6 +101,9 @@ fun HabitRow(habit: Habit, onOpen: () -> Unit, onToggled: () -> Unit) {
                         CircleShape
                     )
                     .clickable(enabled = !busy && !done) {
+                        // Photo-proof habits must go through the detail screen's
+                        // camera/gallery flow — one-tap would bypass verification.
+                        if (needsCam) { onOpen(); return@clickable }
                         busy = true
                         scope.launch {
                             try {

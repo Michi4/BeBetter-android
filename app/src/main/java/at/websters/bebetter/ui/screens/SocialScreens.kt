@@ -60,7 +60,12 @@ fun FriendsScreen(onChallenge: (String) -> Unit, onNewChallenge: () -> Unit) {
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { scope.launch { inviteToken = runCatching { ApiClient.get().createFriendLink()["token"] ?: ApiClient.get().createFriendLink()["link"] }.getOrNull() } }) { Text("Invite link") }
+                Button(onClick = { scope.launch {
+                    inviteToken = runCatching {
+                        val r = ApiClient.get().createFriendLink()
+                        r["token"] ?: r["link"]
+                    }.getOrNull()
+                } }) { Text("Invite link") }
                 Button(onClick = onNewChallenge) { Text("New battle") }
             }
             inviteToken?.let { Text("Share: https://app.bebetter.websters.at/friend/accept/$it", style = MaterialTheme.typography.bodySmall) }
@@ -90,7 +95,7 @@ fun ChallengesScreen(onDetail: (String) -> Unit, onNew: () -> Unit) {
         list.forEach { c ->
             Card(onClick = { onDetail(c.id) }, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp)) {
-                    Text("⚔️ ${c.title.ifBlank { c.habit?.title ?: "Challenge" }}", style = MaterialTheme.typography.titleSmall)
+                    Text("${c.title.ifBlank { c.habit?.title ?: "Challenge" }}", style = MaterialTheme.typography.titleSmall)
                     Text("${c.creator?.username} vs ${c.opponent?.username} • ${c.status}", style = MaterialTheme.typography.bodySmall)
                 }
             }
@@ -143,7 +148,7 @@ fun ChallengeDetailScreen(id: String, onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         TextButton(onClick = onBack) { Text("← Back") }
         val ch = c ?: run { LinearProgressIndicator(Modifier.fillMaxWidth()); return@Column }
-        Text("⚔️ ${ch.title.ifBlank { ch.habit?.title ?: "Battle" }}", style = MaterialTheme.typography.headlineSmall)
+        Text("${ch.title.ifBlank { ch.habit?.title ?: "Battle" }}", style = MaterialTheme.typography.headlineSmall)
         Text("${ch.creator?.username} vs ${ch.opponent?.username} • ${ch.status}")
         ch.stake?.let { Text("Stake: $it") }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -5,15 +5,13 @@ import com.google.gson.GsonBuilder
 import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import okhttp3.Interceptor
+import at.websters.bebetter.BuildConfig
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -27,9 +25,9 @@ object ApiClient {
     @Volatile private var tokenProvider: (() -> String?)? = null
     @Volatile private var http: OkHttpClient? = null
 
-    fun init(context: Context, session: SessionManager) {
-        tokenProvider = { runBlocking { runCatching { session.getToken() }.getOrNull() } }
-        runBlocking { runCatching { baseUrl = session.getBaseUrl() }.getOrNull() }
+    fun init(session: SessionManager) {
+        // In-memory cache: no runBlocking on the network path.
+        tokenProvider = { session.cachedToken }
     }
 
     fun setBaseUrl(url: String) {
@@ -57,7 +55,7 @@ object ApiClient {
             } else chain.request()
             chain.proceed(req)
         }
-        val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC }
+        val logging = HttpLoggingInterceptor().apply { level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BASIC else HttpLoggingInterceptor.Level.NONE }
         val client = OkHttpClient.Builder()
             .addInterceptor(auth)
             .addInterceptor(logging)

@@ -64,7 +64,7 @@ fun TasksScreen() {
                 TaskRow(task = t, onChanged = { load() }, onMove = { dir -> moveTask(t, dir) })
             }
             item {
-                if (tasks.none { it.isDueToday }) Text("All clear! 🎉")
+                if (tasks.none { it.isDueToday }) Text("All clear!")
             }
             item {
                 Text("Later / upcoming (${tasks.count { !it.isDueToday }})", style = MaterialTheme.typography.titleSmall)

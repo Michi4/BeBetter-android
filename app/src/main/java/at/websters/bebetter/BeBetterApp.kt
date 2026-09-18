@@ -21,8 +21,10 @@ class BeBetterApp : Application() {
     override fun onCreate() {
         super.onCreate()
         session = SessionManager(this)
-        ApiClient.init(this, session)
+        ApiClient.init(session)
         CoroutineScope(Dispatchers.IO).launch {
+            runCatching { session.ensureMigrated() }
+            runCatching { session.getToken() } // prime in-memory cache
             runCatching { ApiClient.setBaseUrl(session.getBaseUrl()) }
         }
         createChannels()

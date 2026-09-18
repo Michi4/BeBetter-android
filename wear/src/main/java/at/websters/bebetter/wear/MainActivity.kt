@@ -70,7 +70,8 @@ fun WearApp(startScreen: String = "today") {
     var token by remember { mutableStateOf<String?>(null) }
     var ready by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        WearClient.init(session.base()) { runCatching { kotlinx.coroutines.runBlocking { session.token() } }.getOrNull() }
+        runCatching { session.ensureMigrated() }
+        WearClient.init(session.base()) { session.cachedToken }
         val t = session.token()
         if (!t.isNullOrBlank() && runCatching { WearClient.get().me() }.isSuccess) token = t
         else { session.clear(); WearClient.reset() }

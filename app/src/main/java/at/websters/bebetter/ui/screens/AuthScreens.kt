@@ -33,6 +33,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
+fun LegalLinksRow() {
+    val uri = androidx.compose.ui.platform.LocalUriHandler.current
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 24.dp)) {
+        TextButton(onClick = { uri.openUri("https://bebetter.websters.at/terms") }, contentPadding = PaddingValues(4.dp)) { Text("Terms", fontSize = 12.sp) }
+        Text("·", fontSize = 12.sp)
+        TextButton(onClick = { uri.openUri("https://bebetter.websters.at/privacy") }, contentPadding = PaddingValues(4.dp)) { Text("Privacy", fontSize = 12.sp) }
+        Text("·", fontSize = 12.sp)
+        TextButton(onClick = { uri.openUri("https://bebetter.websters.at/imprint") }, contentPadding = PaddingValues(4.dp)) { Text("Imprint", fontSize = 12.sp) }
+    }
+}
+
+@Composable
 fun LoginScreen(onLoggedIn: (String, Boolean, Boolean) -> Unit, onRegister: () -> Unit, onForgot: () -> Unit) {
     val ctx = LocalContext.current
     val app = ctx.applicationContext as BeBetterApp
@@ -114,6 +126,23 @@ fun LoginScreen(onLoggedIn: (String, Boolean, Boolean) -> Unit, onRegister: () -
                                 }
                             }
                         )
+                        var showServer by remember { mutableStateOf(false) }
+                        TextButton(onClick = { showServer = !showServer }, modifier = Modifier.fillMaxWidth()) {
+                            Text(if (showServer) "Hide server settings" else "Server: " + baseUrl.take(40), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                        }
+                        if (showServer) {
+                            OutlinedTextField(
+                                value = baseUrl, onValueChange = { baseUrl = it }, placeholder = { Text("https://app.bebetter.websters.at", fontSize = 14.sp) },
+                                singleLine = true, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = BeBetterTokens.Accent,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                    unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                                )
+                            )
+                        }
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                             Checkbox(checked = stay, onCheckedChange = { stay = it }, colors = CheckboxDefaults.colors(checkedColor = BeBetterTokens.Accent))
                             Text("Stay logged in", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 8.dp))
@@ -126,7 +155,7 @@ fun LoginScreen(onLoggedIn: (String, Boolean, Boolean) -> Unit, onRegister: () -
                                         session.saveBaseUrl(baseUrl.ifBlank { SessionManager.DEFAULT_BASE_URL })
                                         ApiClient.setBaseUrl(session.getBaseUrl())
                                         val r = ApiClient.get().login(LoginRequest(id.trim(), pw))
-                                        session.saveToken(r.token); ApiClient.invalidate()
+                                        session.saveToken(r.token, stay); ApiClient.invalidate()
                                         val me = ApiClient.get().me().user
                                         withContext(Dispatchers.Main) { onLoggedIn(r.token, me.role == "admin", me.isDemo) }
                                     } catch (e: Exception) {
@@ -183,13 +212,7 @@ fun LoginScreen(onLoggedIn: (String, Boolean, Boolean) -> Unit, onRegister: () -
                         }
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 24.dp)) {
-                    TextButton(onClick = {}, contentPadding = PaddingValues(4.dp)) { Text("Terms", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) }
-                    Text("·", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), fontSize = 12.sp)
-                    TextButton(onClick = {}, contentPadding = PaddingValues(4.dp)) { Text("Privacy", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) }
-                    Text("·", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), fontSize = 12.sp)
-                    TextButton(onClick = {}, contentPadding = PaddingValues(4.dp)) { Text("Imprint", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) }
-                }
+                LegalLinksRow()
             }
         }
     }
@@ -269,13 +292,7 @@ fun RegisterScreen(onDone: (String) -> Unit, onBack: () -> Unit) {
                         }
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 24.dp)) {
-                    TextButton(onClick = {}, contentPadding = PaddingValues(4.dp)) { Text("Terms", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) }
-                    Text("·", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), fontSize = 12.sp)
-                    TextButton(onClick = {}, contentPadding = PaddingValues(4.dp)) { Text("Privacy", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) }
-                    Text("·", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), fontSize = 12.sp)
-                    TextButton(onClick = {}, contentPadding = PaddingValues(4.dp)) { Text("Imprint", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) }
-                }
+                LegalLinksRow()
             }
         }
     }
@@ -335,13 +352,7 @@ fun ForgotScreen(onBack: () -> Unit) {
                         TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Back to Sign In", color = BeBetterTokens.Accent, fontSize = 14.sp) }
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 24.dp)) {
-                    TextButton(onClick = {}, contentPadding = PaddingValues(4.dp)) { Text("Terms", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) }
-                    Text("·", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), fontSize = 12.sp)
-                    TextButton(onClick = {}, contentPadding = PaddingValues(4.dp)) { Text("Privacy", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) }
-                    Text("·", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), fontSize = 12.sp)
-                    TextButton(onClick = {}, contentPadding = PaddingValues(4.dp)) { Text("Imprint", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) }
-                }
+                LegalLinksRow()
             }
         }
     }

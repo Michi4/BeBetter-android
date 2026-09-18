@@ -38,16 +38,36 @@ fun CreateSheet(initialMode: String = "task", initialTitle: String = "", initial
 
     var title by remember { mutableStateOf(initialTitle) }
     var desc by remember { mutableStateOf(initialDescription) }
-    var emoji by remember { mutableStateOf("🌱") }
+    var emoji by remember { mutableStateOf("") }
     var showEmoji by remember { mutableStateOf(false) }
     var showAdvanced by remember { mutableStateOf(false) }
 
     var dueDate by remember { mutableStateOf("") }
     var schedTime by remember { mutableStateOf("") }
+    var showDatePicker by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
+    var taskIntervalN by remember { mutableStateOf("2") }
+    val timePickerState = androidx.compose.material3.rememberTimePickerState(initialHour = 9, initialMinute = 0, is24Hour = true)
     var repeat by remember { mutableStateOf("once") }
-    var repeatDays by remember { mutableStateOf(setOf<Int>()) }
+    var repeatDays by remember { mutableStateOf(setOf(1, 2, 3, 4, 5)) }
+    var taskIntervalN by remember { mutableStateOf("2") }
     var reminders by remember { mutableStateOf(setOf<Int>()) }
     var customReminder by remember { mutableStateOf("") }
+
+    var buddyQuery by remember { mutableStateOf("") }
+    var buddyResults by remember { mutableStateOf(listOf<at.websters.bebetter.data.Friend>()) }
+    var buddyIds by remember { mutableStateOf(setOf<String>()) }
+    var challengerQuery by remember { mutableStateOf("") }
+    var challengerResults by remember { mutableStateOf(setOf<at.websters.bebetter.data.Friend>()) }
+    var challengerIds by remember { mutableStateOf(setOf<String>()) }
+
+    fun searchFriends(q: String, assign: (List<at.websters.bebetter.data.Friend>) -> Unit) {
+        if (q.length < 2) { assign(emptyList()); return }
+        scope.launch {
+            val r = runCatching { ApiClient.get().friendSearch(q) }.getOrNull()
+            assign((r?.users ?: emptyList()) + (r?.results ?: emptyList()))
+        }
+    }
 
     // habit specific
     var schedulePreset by remember { mutableStateOf("Daily") }
@@ -139,14 +159,39 @@ fun CreateSheet(initialMode: String = "task", initialTitle: String = "", initial
                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BeBetterTokens.Accent, unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
                 )
                 Text("Due date (optional)", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (showDatePicker) {
+                    val dateState = androidx.compose.material3.rememberDatePickerState()
+                    androidx.compose.material3.DatePickerDialog(
+                        onDismissRequest = { showDatePicker = false },
+                        confirmButton = { TextButton(onClick = {
+                            dateState.selectedDateMillis?.let { ms ->
+                                val c = java.util.Calendar.getInstance().apply { timeInMillis = ms }
+                                dueDate = "%04d-%02d-%02d".format(c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH) + 1, c.get(java.util.Calendar.DAY_OF_MONTH))
+                            }
+                            showDatePicker = false
+                        }) { Text("OK") } },
+                        dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Cancel") } }
+                    ) { androidx.compose.material3.DatePicker(state = dateState) }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(dueDate, { dueDate = it }, placeholder = { Text("mm / dd / yyyy", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
+                    OutlinedTextField(dueDate, { dueDate = it }, placeholder = { Text("YYYY-MM-DD", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
                         singleLine = true, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp),
-                        trailingIcon = { Text("📅", fontSize = 16.sp) },
+                        trailingIcon = { Text("📅", fontSize = 16.sp, modifier = Modifier.clickable { showDatePicker = true }) },
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BeBetterTokens.Accent, unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
                     )
+                    if (showTimePicker) {
+                        androidx.compose.material3.AlertDialog(
+                            onDismissRequest = { showTimePicker = false },
+                            confirmButton = { TextButton(onClick = {
+                                schedTime = "%02d:%02d".format(timePickerState.hour, timePickerState.minute)
+                                showTimePicker = false
+                            }) { Text("OK") } },
+                            dismissButton = { TextButton(onClick = { showTimePicker = false }) { Text("Cancel") } },
+                            text = { androidx.compose.material3.TimePicker(state = timePickerState) }
+                        )
+                    }
                     // Time button like screenshot
-                    Box(Modifier.height(56.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)).clickable {}.padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
+                    Box(Modifier.height(56.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)).clickable { showTimePicker = true }.padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("◷", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant); Text("Time", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -155,9 +200,46 @@ fun CreateSheet(initialMode: String = "task", initialTitle: String = "", initial
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("◷", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant); Text("Set a time", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                // quick time input if set
-                if (schedTime.isNotBlank() || true) {
-                    // hidden until user taps "Set a time" - for simplicity show field
+                // Repeat: Once / Daily / Weekly / Every N days (mirrors web task modal)
+                Text("Repeat", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("once" to "Once", "daily" to "Daily", "weekly" to "Weekly", "interval" to "Every N").forEach { (v, l) ->
+                        val sel = repeat == v
+                        Box(Modifier.height(36.dp).clip(RoundedCornerShape(10.dp)).background(if (sel) BeBetterTokens.AccentBtn else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)).clickable { repeat = v }.padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
+                            Text(l, fontSize = 13.sp, color = if (sel) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+                if (repeat == "weekly") {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("Su","Mo","Tu","We","Th","Fr","Sa").forEachIndexed { i, d ->
+                            val sel = repeatDays.contains(i)
+                            Box(Modifier.weight(1f).height(44.dp).clip(RoundedCornerShape(10.dp)).background(if (sel) BeBetterTokens.AccentBtn else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)).clickable {
+                                repeatDays = if (sel) { if (repeatDays.size <= 1) repeatDays else repeatDays - i } else repeatDays + i
+                            }, contentAlignment = Alignment.Center) {
+                                Text(d, fontSize = 12.sp, color = if (sel) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+                if (repeat == "interval") {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Every", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        OutlinedTextField(taskIntervalN, { taskIntervalN = it.filter { c -> c.isDigit() }.take(3) }, singleLine = true, modifier = Modifier.width(72.dp), shape = RoundedCornerShape(10.dp))
+                        Text("days", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                // Reminders: at time + before offsets (mirrors web presets)
+                Text("Reminders", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(0 to "At time", 5 to "5m", 10 to "10m", 15 to "15m", 30 to "30m").forEach { (v, l) ->
+                        val sel = reminders.contains(v)
+                        Box(Modifier.height(32.dp).clip(RoundedCornerShape(10.dp)).background(if (sel) BeBetterTokens.AccentBtn else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)).clickable {
+                            reminders = if (sel) reminders - v else reminders + v
+                        }.padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
+                            Text(l, fontSize = 12.sp, color = if (sel) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                 }
 
                 err?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp) }
@@ -169,7 +251,22 @@ fun CreateSheet(initialMode: String = "task", initialTitle: String = "", initial
                                 val body = mutableMapOf<String, Any?>("title" to title.trim(), "description" to desc.ifBlank { null }, "emoji" to emoji)
                                 if (dueDate.isNotBlank()) body["dueDate"] = dueDate.trim()
                                 if (schedTime.isNotBlank()) body["scheduledTime"] = schedTime.trim()
-                                if (reminders.isNotEmpty()) body["reminderMinutes"] = reminders.sorted()
+                                when (repeat) {
+                                    "daily" -> body["isEveryday"] = true
+                                    "weekly" -> if (repeatDays.isNotEmpty()) body["scheduledDays"] = repeatDays.sorted()
+                                    "interval" -> {
+                                        val n = taskIntervalN.toIntOrNull()
+                                        if (n == null || n < 2 || n > 365) {
+                                            err = "Repeat every N days needs a number from 2 to 365"; busy = false; return@launch
+                                        }
+                                        body["intervalDays"] = n
+                                    }
+                                }
+                                if (schedTime.isNotBlank()) {
+                                    body["reminderMinutes"] = if (reminders.isNotEmpty()) reminders.sorted() else listOf(0)
+                                } else if (reminders.isNotEmpty()) {
+                                    body["reminderMinutes"] = reminders.sorted()
+                                }
                                 ApiClient.get().createTask(body); onCreated()
                             } catch (e: Exception) { err = (e as? retrofit2.HttpException)?.response()?.errorBody()?.string()?.take(300) ?: e.message; busy = false }
                         }
@@ -326,9 +423,37 @@ fun CreateSheet(initialMode: String = "task", initialTitle: String = "", initial
                             Text("🌐", fontSize = 16.sp)
                         }
                         Text("Accountability Buddies", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        OutlinedTextField("", {}, placeholder = { Text("Search friends to add as buddies...", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) }, enabled = false, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                        if (buddyIds.isNotEmpty()) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                                Text(buddyIds.size.toString() + " selected", fontSize = 12.sp, color = BeBetterTokens.Accent)
+                                TextButton(onClick = { buddyIds = emptySet() }) { Text("Clear", fontSize = 12.sp) }
+                            }
+                        }
+                        OutlinedTextField(buddyQuery, { buddyQuery = it; searchFriends(it) { buddyResults = it } }, placeholder = { Text("Search friends to add as buddies...", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                        buddyResults.take(5).forEach { u ->
+                            Row(Modifier.fillMaxWidth().clickable {
+                                buddyIds = if (buddyIds.contains(u.id)) buddyIds - u.id else buddyIds + u.id
+                            }.padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text("@" + u.username, fontSize = 13.sp)
+                                Text(if (buddyIds.contains(u.id)) "✓" else "+", fontSize = 14.sp, color = BeBetterTokens.Accent)
+                            }
+                        }
                         Text("Challenge Friends", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        OutlinedTextField("", {}, placeholder = { Text("Search friends to challenge...", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) }, enabled = false, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                        if (challengerIds.isNotEmpty()) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                                Text(challengerIds.size.toString() + " selected", fontSize = 12.sp, color = BeBetterTokens.Accent)
+                                TextButton(onClick = { challengerIds = emptySet() }) { Text("Clear", fontSize = 12.sp) }
+                            }
+                        }
+                        OutlinedTextField(challengerQuery, { challengerQuery = it; searchFriends(it) { challengerResults = it.toSet().toList() } }, placeholder = { Text("Search friends to challenge...", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                        challengerResults.take(5).forEach { u ->
+                            Row(Modifier.fillMaxWidth().clickable {
+                                challengerIds = if (challengerIds.contains(u.id)) challengerIds - u.id else challengerIds + u.id
+                            }.padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text("@" + u.username, fontSize = 13.sp)
+                                Text(if (challengerIds.contains(u.id)) "✓" else "+", fontSize = 14.sp, color = BeBetterTokens.Accent)
+                            }
+                        }
                     }
                 }
                 err?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp) }
@@ -353,6 +478,8 @@ fun CreateSheet(initialMode: String = "task", initialTitle: String = "", initial
                                     }
                                 }
                                 if (reminders.isNotEmpty()) body["reminderMinutes"] = reminders.sorted()
+                                if (buddyIds.isNotEmpty()) body["buddyIds"] = buddyIds.toList()
+                                if (challengerIds.isNotEmpty()) body["challengeFriendIds"] = challengerIds.toList()
                                 ApiClient.get().createHabit(body); onCreated()
                             } catch (e: Exception) { err = (e as? retrofit2.HttpException)?.response()?.errorBody()?.string()?.take(300) ?: e.message; busy=false }
                         }

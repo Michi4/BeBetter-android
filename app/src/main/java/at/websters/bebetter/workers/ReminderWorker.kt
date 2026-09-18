@@ -32,7 +32,7 @@ class ReminderWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
                 )
             }
             val notifs = runCatching { api.notifications().notifications }.getOrDefault(emptyList())
-            val unread = notifs.count { !it.read }
+            val unread = notifs.count { !it.read && !it.pushed }
             if (unread > 0) {
                 notify(1002, "BeBetter: $unread unread notification${if (unread == 1) "" else "s"}", "Open the app to catch up with friends & challenges.")
             }

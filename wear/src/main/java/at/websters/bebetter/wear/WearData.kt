@@ -1,14 +1,10 @@
 package at.websters.bebetter.wear
 
 import android.content.Context
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import com.google.gson.GsonBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -18,24 +14,6 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.*
 import java.util.concurrent.TimeUnit
-
-private val Context.wearStore by preferencesDataStore(name = "bebetter_wear")
-
-class WearSession(private val ctx: Context) {
-    companion object {
-        private val KEY_TOKEN = stringPreferencesKey("token")
-        private val KEY_BASE = stringPreferencesKey("base_url")
-        private val KEY_SID = stringPreferencesKey("assistant_session")
-        const val DEFAULT_BASE = "https://app.bebetter.websters.at"
-    }
-    suspend fun token(): String? = ctx.wearStore.data.map { it[KEY_TOKEN] }.first()
-    suspend fun saveToken(t: String) { ctx.wearStore.edit { it[KEY_TOKEN] = t } }
-    suspend fun clear() { ctx.wearStore.edit { it.remove(KEY_TOKEN); it.remove(KEY_SID) } }
-    suspend fun base(): String = ctx.wearStore.data.map { it[KEY_BASE] ?: DEFAULT_BASE }.first()
-    suspend fun saveBase(u: String) { ctx.wearStore.edit { it[KEY_BASE] = u } }
-    suspend fun sessionId(): String? = ctx.wearStore.data.map { it[KEY_SID] }.first()
-    suspend fun saveSessionId(id: String) { ctx.wearStore.edit { it[KEY_SID] = id } }
-}
 
 // Minimal API surface the watch needs (same /api as phone/web).
 data class WearUser(val id: String = "", val username: String = "", val role: String = "user", val isDemo: Boolean = false)

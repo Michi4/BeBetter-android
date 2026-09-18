@@ -130,8 +130,8 @@ fun DashboardScreen(
                 containerColor = BeBetterTokens.AccentBtnHover, // emerald-600 like web FAB
                 contentColor = androidx.compose.ui.graphics.Color.White,
                 shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.padding(bottom = 48.dp).size(56.dp)
-            ) { Icon(Icons.Filled.Add, null, modifier = Modifier.size(24.dp)) }
+                modifier = Modifier.size(56.dp)
+            ) { Icon(Icons.Filled.Add, "Create", modifier = Modifier.size(24.dp)) }
         }
     ) { pad ->
         if (loading) {
@@ -144,7 +144,7 @@ fun DashboardScreen(
         LazyColumn(
             Modifier.fillMaxSize().padding(pad).padding(horizontal = 16.dp).padding(top = 16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
-            contentPadding = PaddingValues(bottom = 320.dp)
+            contentPadding = PaddingValues(bottom = 200.dp)
         ) {
             // Demo banner web-exact: card bg-emerald-500/10 border emerald-500/20 icon FlaskConical
             if (me?.isDemo == true) {

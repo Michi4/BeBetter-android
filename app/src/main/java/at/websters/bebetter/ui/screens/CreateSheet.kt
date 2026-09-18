@@ -98,7 +98,7 @@ fun CreateSheet(initialMode: String = "task", initialTitle: String = "", initial
         contentColor = MaterialTheme.colorScheme.onSurface
     ) {
         Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp),
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp).imePadding(),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             // Header

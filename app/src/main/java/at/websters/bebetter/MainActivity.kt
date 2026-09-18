@@ -143,6 +143,21 @@ fun BeBetterNav(
         loading = false
     }
 
+    // Self-update: once a day, only when signed in.
+    var updateInfo by remember { mutableStateOf<at.websters.bebetter.data.UpdateChecker.UpdateInfo?>(null) }
+    var updateBusy by remember { mutableStateOf(false) }
+    var updateProgress by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(token) {
+        if (token.isNullOrBlank()) return@LaunchedEffect
+        try {
+            val last = session.lastUpdateCheck()
+            if (System.currentTimeMillis() - last < 24L * 60 * 60 * 1000) return@LaunchedEffect
+            session.saveLastUpdateCheck(System.currentTimeMillis())
+            val info = at.websters.bebetter.data.UpdateChecker.check(at.websters.bebetter.BuildConfig.VERSION_NAME)
+            if (info != null && session.skippedVersion() != info.tag) updateInfo = info
+        } catch (_: Exception) { /* never block the app on update checks */ }
+    }
+
     // Deep links (friend invite / challenge invite / password reset), incl.
     // links opened while logged out: park them until the session resolves.
     var pendingLink by remember { mutableStateOf<String?>(null) }
@@ -434,6 +449,56 @@ fun BeBetterNav(
                     onBack = { nav.popBackStack() }
                 )
             }
+        }
+
+        updateInfo?.let { info ->
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { updateInfo = null },
+                title = { Text("Update available: ${info.tag}") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            info.notes.ifBlank { "A new version of BeBetter is ready." }.take(600),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        if (updateProgress != null) {
+                            LinearProgressIndicator(
+                                progress = { (updateProgress ?: 0) / 100f },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        updateBusy = true
+                        scope.launch {
+                            if (!at.websters.bebetter.data.UpdateChecker.canInstallPackages(ctx)) {
+                                try {
+                                    ctx.startActivity(android.content.Intent(
+                                        android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                        android.net.Uri.parse("package:" + ctx.packageName)
+                                    ))
+                                } catch (_: Exception) {}
+                                updateBusy = false
+                                return@launch
+                            }
+                            val ok = at.websters.bebetter.data.UpdateChecker.downloadAndInstall(ctx, info) { updateProgress = it }
+                            updateBusy = false
+                            if (!ok) updateProgress = null
+                        }
+                    }, enabled = !updateBusy) { Text(if (updateProgress != null) "${updateProgress}%" else "Download & install") }
+                },
+                dismissButton = {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { updateInfo = null }) { Text("Later") }
+                        TextButton(onClick = {
+                            scope.launch { session.saveSkippedVersion(info.tag) }
+                            updateInfo = null
+                        }) { Text("Skip") }
+                    }
+                }
+            )
         }
     }
 }

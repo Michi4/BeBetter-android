@@ -20,6 +20,8 @@ class SessionManager(private val context: Context) {
         private val KEY_BASE_URL = stringPreferencesKey("base_url")
         private val KEY_THEME = stringPreferencesKey("theme") // light | dark | null(system)
         private val KEY_KEEP_SCREEN_ON = booleanPreferencesKey("keep_screen_on")
+        private val KEY_LAST_UPDATE_CHECK = androidx.datastore.preferences.core.longPreferencesKey("last_update_check")
+        private val KEY_SKIPPED_VERSION = stringPreferencesKey("skipped_version")
         const val DEFAULT_BASE_URL = "https://app.bebetter.websters.at"
         private const val ENC_PREFS = "bebetter_session_enc"
     }
@@ -96,6 +98,24 @@ class SessionManager(private val context: Context) {
     suspend fun getKeepScreenOn(): Boolean = try {
         appCtx.dataStore.data.map { it[KEY_KEEP_SCREEN_ON] ?: true }.first()
     } catch (_: Exception) { true }
+
+    suspend fun lastUpdateCheck(): Long = try {
+        appCtx.dataStore.data.map { it[KEY_LAST_UPDATE_CHECK] ?: 0L }.first()
+    } catch (_: Exception) { 0L }
+
+    suspend fun saveLastUpdateCheck(now: Long) {
+        try { appCtx.dataStore.edit { it[KEY_LAST_UPDATE_CHECK] = now } } catch (_: Exception) {}
+    }
+
+    suspend fun skippedVersion(): String? = try {
+        appCtx.dataStore.data.map { it[KEY_SKIPPED_VERSION] }.first()
+    } catch (_: Exception) { null }
+
+    suspend fun saveSkippedVersion(tag: String?) {
+        try {
+            appCtx.dataStore.edit { if (tag == null) it.remove(KEY_SKIPPED_VERSION) else it[KEY_SKIPPED_VERSION] = tag }
+        } catch (_: Exception) {}
+    }
 
     suspend fun saveKeepScreenOn(on: Boolean) {
         try { appCtx.dataStore.edit { it[KEY_KEEP_SCREEN_ON] = on } } catch (_: Exception) {}

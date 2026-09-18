@@ -59,7 +59,7 @@ fun TasksScreen() {
         }
         err?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f), contentPadding = PaddingValues(bottom = 96.dp)) {
             items(tasks.filter { it.isDueToday }) { t ->
                 TaskRow(task = t, onChanged = { load() }, onMove = { dir -> moveTask(t, dir) })
             }

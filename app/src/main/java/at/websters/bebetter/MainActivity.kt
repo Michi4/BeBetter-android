@@ -164,7 +164,8 @@ fun BeBetterNav(
     LaunchedEffect(deepLinkUri.value) {
         val uri = deepLinkUri.value ?: return@LaunchedEffect
         onDeepLinkConsumed()
-        val path = uri.path?.trim('/') ?: return@LaunchedEffect
+        val rawPath = uri.path ?: return@LaunchedEffect
+        val path = rawPath.removePrefix("/").removeSuffix("/")
         val target = when {
             path.startsWith("friend/accept/") ->
                 Routes.friendAccept(path.removePrefix("friend/accept/"))

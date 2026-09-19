@@ -82,7 +82,6 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        android.util.Log.d("DeepLink", "TMP onNewIntent data=" + intent.data)
         deepLinkUri.value = intent.data
     }
 
@@ -164,7 +163,6 @@ fun BeBetterNav(
     var pendingLink by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(deepLinkUri.value) {
         val uri = deepLinkUri.value ?: return@LaunchedEffect
-        android.util.Log.d("DeepLink", "TMP consumer uri=" + uri)
         onDeepLinkConsumed()
         val rawPath = uri.path ?: return@LaunchedEffect
         val path = rawPath.removePrefix("/").removeSuffix("/")
@@ -178,8 +176,7 @@ fun BeBetterNav(
             uri.scheme == "bebetter" && uri.host == "reset-password" ->
                 Routes.reset(uri.getQueryParameter("token").orEmpty())
             else -> null
-        } ?: return@LaunchedEffect.also { android.util.Log.d("DeepLink", "TMP no target") }
-        android.util.Log.d("DeepLink", "TMP target=" + target + " tokenNull=" + (token == null))
+        } ?: return@LaunchedEffect
         if (token == null && !target.startsWith("reset-password")) {
             pendingLink = target
         } else {

@@ -123,7 +123,7 @@ fun DashboardScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0),
-        floatingActionButtonPosition = FabPosition.Center, // web: centered above bottom nav
+        floatingActionButtonPosition = FabPosition.End, // web: centered above bottom nav
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { convertPrefill = null; createMode = "task"; showCreate = true },
